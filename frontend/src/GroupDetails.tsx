@@ -112,6 +112,32 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
     });
   }
 
+  // Compute balances from expenses
+  function computeBalances() {
+    const balances: Record<string, number> = {};
+    group.members.forEach(m => { balances[m.name] = 0; });
+    for (const exp of expenses) {
+      // Determine who is included in the split
+      let splitMembers: string[];
+      if (exp.split && exp.split.startsWith('Evenly among:')) {
+        splitMembers = exp.split.replace('Evenly among: ', '').split(',').map(s => s.trim());
+      } else {
+        splitMembers = group.members.map(m => m.name);
+      }
+      const share = exp.amount / splitMembers.length;
+      // Payer pays for everyone, so gets reimbursed by others
+      for (const name of splitMembers) {
+        if (name === exp.payer) {
+          balances[name] += exp.amount - share;
+        } else {
+          balances[name] -= share;
+        }
+      }
+    }
+    return group.members.map(m => ({ name: m.name, amount: balances[m.name] }));
+  }
+  const balances = computeBalances();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-100/80 via-purple-100/80 to-purple-200/80 backdrop-blur-[3px]">
       <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-lg relative animate-fadeInUp">
@@ -152,8 +178,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                 {/* Tricount-style horizontal bar graph */}
                 <div className="flex flex-col gap-2">
                   {(() => {
-                    const maxAbs = Math.max(...dummyBalances.map(b => Math.abs(b.amount)), 1);
-                    return dummyBalances.map((b, idx) => {
+                    const maxAbs = Math.max(...balances.map(b => Math.abs(b.amount)), 1);
+                    return balances.map((b, idx) => {
                       const barWidth = `${Math.abs(b.amount) / maxAbs * 100}%`;
                       const isPositive = b.amount > 0;
                       return (
@@ -162,7 +188,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                           {!isPositive && (
                             <div className="flex items-center justify-end pr-2" style={{ width: barWidth }}>
                               <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
-                                <span>{b.amount.toFixed(2)} €</span>
+                                <span>{b.amount.toFixed(2)} $</span>
                                 <span className="ml-2">{b.name}</span>
                               </div>
                             </div>
@@ -174,7 +200,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                             <div className="flex items-center justify-start pl-2 ml-auto" style={{ width: barWidth }}>
                               <div className="bg-green-200 text-green-800 rounded-r-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
                                 <span>{b.name}</span>
-                                <span className="ml-2">+{b.amount.toFixed(2)} €</span>
+                                <span className="ml-2">+{b.amount.toFixed(2)} $</span>
                               </div>
                             </div>
                           )}
@@ -191,8 +217,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                 <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm">
                   {(() => {
                     // Calculate minimal payments
-                    const creditors = dummyBalances.filter(b => b.amount > 0).map(b => ({ ...b }));
-                    const debtors = dummyBalances.filter(b => b.amount < 0).map(b => ({ ...b }));
+                    const creditors = balances.filter(b => b.amount > 0).map(b => ({ ...b }));
+                    const debtors = balances.filter(b => b.amount < 0).map(b => ({ ...b }));
                     const payments: { from: string; to: string; amount: number }[] = [];
                     let i = 0, j = 0;
                     while (i < debtors.length && j < creditors.length) {
@@ -217,7 +243,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                             <span className="font-medium text-gray-700">{p.from}</span>
                             <span className="mx-2 text-gray-500">owes</span>
                             <span className="font-medium text-purple-400">{p.to}</span>
-                            <span className="ml-2 font-semibold">{p.amount.toFixed(2)} €</span>
+                            <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
                           </li>
                         ))}
                       </ul>
@@ -233,8 +259,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                 {/* Bar graph of what current user owes to each person */}
                 {(() => {
                   // Calculate minimal payments
-                  const creditors = dummyBalances.filter(b => b.amount > 0).map(b => ({ ...b }));
-                  const debtors = dummyBalances.filter(b => b.amount < 0).map(b => ({ ...b }));
+                  const creditors = balances.filter(b => b.amount > 0).map(b => ({ ...b }));
+                  const debtors = balances.filter(b => b.amount < 0).map(b => ({ ...b }));
                   const payments: { from: string; to: string; amount: number }[] = [];
                   let i = 0, j = 0;
                   while (i < debtors.length && j < creditors.length) {
@@ -261,7 +287,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                         <div key={idx} className="flex items-center w-full h-10">
                           <div className="flex items-center justify-end pr-2" style={{ width: `${p.amount / maxOwe * 100}%` }}>
                             <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
-                              <span>{p.amount.toFixed(2)} €</span>
+                              <span>{p.amount.toFixed(2)} $</span>
                               <span className="ml-2">{p.to}</span>
                             </div>
                           </div>
@@ -277,8 +303,8 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                 <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm">
                   {(() => {
                     // Calculate minimal payments
-                    const creditors = dummyBalances.filter(b => b.amount > 0).map(b => ({ ...b }));
-                    const debtors = dummyBalances.filter(b => b.amount < 0).map(b => ({ ...b }));
+                    const creditors = balances.filter(b => b.amount > 0).map(b => ({ ...b }));
+                    const debtors = balances.filter(b => b.amount < 0).map(b => ({ ...b }));
                     const payments: { from: string; to: string; amount: number }[] = [];
                     let i = 0, j = 0;
                     while (i < debtors.length && j < creditors.length) {
@@ -305,7 +331,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                             <span className="font-medium text-gray-700">You</span>
                             <span className="mx-2 text-gray-500">owe</span>
                             <span className="font-medium text-purple-400">{p.to}</span>
-                            <span className="ml-2 font-semibold">{p.amount.toFixed(2)} €</span>
+                            <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
                           </li>
                         ))}
                       </ul>
@@ -340,7 +366,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose })
                         )}
                       </div>
                       <div className="flex items-center gap-4">
-                        <div className="text-lg font-bold text-purple-400">{exp.amount.toFixed(2)} €</div>
+                        <div className="text-lg font-bold text-purple-400">{exp.amount.toFixed(2)} $</div>
                         <div className="text-xs text-gray-400">{exp.split}</div>
                       </div>
                     </li>
