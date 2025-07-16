@@ -1,0 +1,46 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  groups    Group[]  @relation("GroupMembers")
+  createdAt DateTime @default(now())
+}
+
+model Group {
+  id        String    @id @default(uuid())
+  name      String
+  members   User[]    @relation("GroupMembers")
+  expenses  Expense[]
+  createdAt DateTime  @default(now())
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  group       Group    @relation(fields: [groupId], references: [id])
+  groupId     String
+  description String
+  amount      Float
+  payer       User     @relation(fields: [payerId], references: [id])
+  payerId     String
+  splitType   String   // 'all' or 'subset'
+  splitWith   String[] // array of user IDs (for subset splits)
+  date        DateTime
+  imageUrl    String?
+  createdAt   DateTime @default(now())
+}
