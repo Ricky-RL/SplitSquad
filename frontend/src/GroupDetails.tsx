@@ -49,6 +49,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
   const [addMemberError, setAddMemberError] = useState('');
   const [showRemoveMemberModal, setShowRemoveMemberModal] = useState(false);
   const [removeMemberError, setRemoveMemberError] = useState('');
+  const [showDeleteExpenseModal, setShowDeleteExpenseModal] = useState(false);
+  const [expenseToDeleteIdx, setExpenseToDeleteIdx] = useState<number | null>(null);
+  const [showEditExpenseModal, setShowEditExpenseModal] = useState(false);
+  const [expenseToEditIdx, setExpenseToEditIdx] = useState<number | null>(null);
+  const [editExpenseForm, setEditExpenseForm] = useState({
+    description: '',
+    amount: '',
+    payer: '',
+    date: '',
+    splitType: 'all',
+    splitMembers: [] as string[],
+    image: null as File | null,
+    imageUrl: '',
+  });
+  const [editExpenseError, setEditExpenseError] = useState('');
 
   // Handle form changes
   function handleExpenseChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -187,11 +202,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15.5a3.5 3.5 0 100-7 3.5 3.5 0 000 7z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.4 15a1.65 1.65 0 01.33 1.82l-.06.1a2 2 0 01-2.18 1.09 8.12 8.12 0 01-2.18-.9 8.12 8.12 0 01-2.18.9 2 2 0 01-2.18-1.09l-.06-.1A1.65 1.65 0 014.6 15a2 2 0 01-.33-1.82l.06-.1a8.12 8.12 0 01.9-2.18 8.12 8.12 0 01-.9-2.18A2 2 0 014.6 9a1.65 1.65 0 01.33-1.82l.06-.1A2 2 0 017.17 6a8.12 8.12 0 012.18.9 8.12 8.12 0 012.18-.9A2 2 0 0114.83 6a1.65 1.65 0 011.82.33l.1.06a2 2 0 011.09 2.18 8.12 8.12 0 01.9 2.18 8.12 8.12 0 01.9 2.18 2 2 0 01-1.09 2.18z" /></svg>
                     </button>
                     {showSettings && (
-                      <div className="absolute right-0 mt-2 w-48 bg-gray-900 rounded-lg shadow-lg z-50">
-                        <button className="w-full text-left px-4 py-2 text-gray-200 hover:bg-purple-700 focus:bg-purple-800 transition" onClick={() => { setShowRenameModal(true); setShowSettings(false); }}>Rename group</button>
-                        <button className="w-full text-left px-4 py-2 text-gray-200 hover:bg-purple-700 focus:bg-purple-800 transition" onClick={() => { setShowAddMemberModal(true); setShowSettings(false); }}>Add member</button>
-                        <button className="w-full text-left px-4 py-2 text-gray-200 hover:bg-purple-700 focus:bg-purple-800 transition" onClick={() => { setShowRemoveMemberModal(true); setShowSettings(false); }}>Remove member</button>
-                        <button className="w-full text-left px-4 py-2 text-red-300 hover:bg-red-700 focus:bg-red-800 transition" onClick={() => { setShowDeleteModal(true); setShowSettings(false); }}>Delete group</button>
+                      <div className="absolute right-0 mt-2 w-48 bg-gray-200 rounded-lg shadow-lg z-50">
+                        <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowRenameModal(true); setShowSettings(false); }}>Rename group</button>
+                        <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowAddMemberModal(true); setShowSettings(false); }}>Add member</button>
+                        <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowRemoveMemberModal(true); setShowSettings(false); }}>Remove member</button>
+                        <button className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-100 focus:bg-red-200 transition" onClick={() => { setShowDeleteModal(true); setShowSettings(false); }}>Delete group</button>
                       </div>
                     )}
                   </div>
@@ -420,17 +435,73 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                     <ul className="space-y-4">
                       {expenses.map((exp, idx) => (
                         <li key={idx} className="bg-gray-50 rounded-xl shadow p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div>
-                            <div className="font-semibold text-gray-800">{exp.description}</div>
-                            <div className="text-gray-500 text-sm">Paid by <span className="font-medium">{exp.payer}</span> on {exp.date}</div>
-                            {exp.imageUrl && (
-                              <img src={exp.imageUrl} alt="Proof" className="mt-2 rounded-lg max-h-24 max-w-xs border border-gray-200" />
-                            )}
-                          </div>
-                          <div className="flex items-center gap-4">
-                            <div className="text-lg font-bold text-purple-400">{exp.amount.toFixed(2)} $</div>
-                            <div className="text-xs text-gray-400">{exp.split}</div>
-                          </div>
+                          {expenseToDeleteIdx === idx ? (
+                            <div className="flex flex-col w-full items-center">
+                              <div className="text-red-500 font-bold mb-2">Delete Expense</div>
+                              <div className="text-gray-700 mb-4 text-center">Are you sure you want to delete this expense?<br/><span className='font-semibold'>{exp.description}</span></div>
+                              <div className="flex gap-2 w-full justify-center">
+                                <button
+                                  className="bg-red-500 text-white rounded px-4 py-2 hover:bg-red-600 transition font-semibold shadow"
+                                  onClick={() => {
+                                    setExpenses(prev => prev.filter((_, i) => i !== idx));
+                                    setExpenseToDeleteIdx(null);
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                                <button
+                                  className="bg-gray-200 text-gray-700 rounded px-4 py-2 hover:bg-gray-300 transition font-semibold shadow"
+                                  onClick={() => setExpenseToDeleteIdx(null)}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div>
+                                <div className="font-semibold text-gray-800">{exp.description}</div>
+                                <div className="text-gray-500 text-sm">Paid by <span className="font-medium">{exp.payer}</span> on {exp.date}</div>
+                                {exp.imageUrl && (
+                                  <img src={exp.imageUrl} alt="Proof" className="mt-2 rounded-lg max-h-24 max-w-xs border border-gray-200" />
+                                )}
+                              </div>
+                              <div className="flex items-center gap-4">
+                                <div className="text-lg font-bold text-purple-400">{exp.amount.toFixed(2)} $</div>
+                                <div className="text-xs text-gray-400">{exp.split}</div>
+                                <div className="flex flex-col gap-2 items-end justify-center min-w-[40px]">
+                                  <button
+                                    className="text-purple-400 hover:text-purple-600 p-2 rounded-full transition"
+                                    title="Edit expense"
+                                    onClick={() => {
+                                      setExpenseToEditIdx(idx);
+                                      setEditExpenseForm({
+                                        description: exp.description,
+                                        amount: exp.amount.toString(),
+                                        payer: exp.payer,
+                                        date: exp.date,
+                                        splitType: exp.split.startsWith('Evenly among:') ? 'subset' : 'all',
+                                        splitMembers: exp.split.startsWith('Evenly among:') ? exp.split.replace('Evenly among: ', '').split(',').map((s: string) => s.trim()).filter(Boolean) : group.members.map(m => m.name),
+                                        image: null,
+                                        imageUrl: exp.imageUrl || '',
+                                      });
+                                      setEditExpenseError('');
+                                      setShowEditExpenseModal(true);
+                                    }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13h3l8-8a2.828 2.828 0 00-4-4l-8 8v3h3z" /></svg>
+                                  </button>
+                                  <button
+                                    className="text-red-400 hover:text-red-600 p-2 rounded-full transition"
+                                    title="Delete expense"
+                                    onClick={() => { setExpenseToDeleteIdx(idx); }}
+                                  >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -679,6 +750,122 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        )}
+        {showEditExpenseModal && expenseToEditIdx !== null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-100/80 via-purple-100/80 to-purple-200/80 backdrop-blur-[3px]">
+            <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md relative animate-fadeInUp">
+              <button
+                onClick={() => setShowEditExpenseModal(false)}
+                className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                aria-label="Close"
+              >
+                ×
+              </button>
+              <div className="text-xl font-bold text-purple-400 mb-4">Edit Expense</div>
+              <form
+                onSubmit={e => {
+                  e.preventDefault();
+                  setEditExpenseError('');
+                  if (!editExpenseForm.description.trim() || !editExpenseForm.amount || isNaN(Number(editExpenseForm.amount)) || Number(editExpenseForm.amount) <= 0) {
+                    setEditExpenseError('Please enter a valid description and amount.');
+                    return;
+                  }
+                  if (!editExpenseForm.payer) {
+                    setEditExpenseError('Please select a payer.');
+                    return;
+                  }
+                  if (editExpenseForm.splitType === 'subset' && editExpenseForm.splitMembers.length === 0) {
+                    setEditExpenseError('Please select at least one member to split with.');
+                    return;
+                  }
+                  setExpenses(prev => prev.map((exp, i) =>
+                    i === expenseToEditIdx
+                      ? {
+                          description: editExpenseForm.description,
+                          amount: Number(editExpenseForm.amount),
+                          payer: editExpenseForm.payer,
+                          date: editExpenseForm.date,
+                          split: editExpenseForm.splitType === 'all' ? 'Evenly' : `Evenly among: ${editExpenseForm.splitMembers.join(', ')}`,
+                          imageUrl: editExpenseForm.image ? URL.createObjectURL(editExpenseForm.image) : editExpenseForm.imageUrl,
+                        }
+                      : exp
+                  ));
+                  setShowEditExpenseModal(false);
+                  setExpenseToEditIdx(null);
+                }}
+                className="flex flex-col gap-4"
+              >
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Description</label>
+                  <input type="text" name="description" value={editExpenseForm.description} onChange={e => setEditExpenseForm(f => ({ ...f, description: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200 text-gray-900" required />
+                </div>
+                <div className="flex gap-4">
+                  <div className="flex-1">
+                    <label className="block text-gray-700 font-medium mb-1">Amount ($)</label>
+                    <input type="number" name="amount" min="0.01" step="0.01" value={editExpenseForm.amount} onChange={e => setEditExpenseForm(f => ({ ...f, amount: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200 text-gray-900" required />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-gray-700 font-medium mb-1">Payer</label>
+                    <select name="payer" value={editExpenseForm.payer} onChange={e => setEditExpenseForm(f => ({ ...f, payer: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200 text-gray-900">
+                      {group.members.map((m, i) => (
+                        <option key={i} value={m.name}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Date</label>
+                  <input type="date" name="date" value={editExpenseForm.date} onChange={e => setEditExpenseForm(f => ({ ...f, date: e.target.value }))} className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-200 text-gray-900" />
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Split Method</label>
+                  <div className="flex gap-4 mb-2">
+                    <label className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 py-1 text-gray-900">
+                      <input type="radio" name="splitType" value="all" checked={editExpenseForm.splitType === 'all'} onChange={e => setEditExpenseForm(f => ({ ...f, splitType: 'all', splitMembers: group.members.map(m => m.name) }))} className="accent-purple-400" />
+                      Evenly between all
+                    </label>
+                    <label className="flex items-center gap-2 border border-gray-300 rounded-lg px-2 py-1 text-gray-900">
+                      <input type="radio" name="splitType" value="subset" checked={editExpenseForm.splitType === 'subset'} onChange={e => setEditExpenseForm(f => ({ ...f, splitType: 'subset', splitMembers: [] }))} className="accent-purple-400" />
+                      Evenly between selected
+                    </label>
+                  </div>
+                  {editExpenseForm.splitType === 'subset' && (
+                    <div className="flex flex-wrap gap-3">
+                      {group.members.map((m, i) => (
+                        <label key={i} className="flex items-center gap-1 border border-gray-300 rounded-lg px-2 py-1 text-gray-900">
+                          <input
+                            type="checkbox"
+                            checked={editExpenseForm.splitMembers.includes(m.name)}
+                            onChange={() => setEditExpenseForm(f => {
+                              const exists = f.splitMembers.includes(m.name);
+                              return {
+                                ...f,
+                                splitMembers: exists ? f.splitMembers.filter(n => n !== m.name) : [...f.splitMembers, m.name],
+                              };
+                            })}
+                            className="accent-purple-400"
+                          />
+                          {m.name}
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-gray-700 font-medium mb-1">Proof of Payment (optional)</label>
+                  <input type="file" name="image" accept="image/*" onChange={e => {
+                    const file = (e.target.files && e.target.files[0]) || null;
+                    setEditExpenseForm(f => ({ ...f, image: file, imageUrl: file ? URL.createObjectURL(file) : f.imageUrl }));
+                  }} className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900" />
+                  {editExpenseForm.imageUrl && (
+                    <img src={editExpenseForm.imageUrl} alt="Preview" className="mt-2 rounded-lg max-h-24 max-w-xs border border-gray-200" />
+                  )}
+                </div>
+                {editExpenseError && <div className="text-red-500 text-sm font-medium">{editExpenseError}</div>}
+                <button type="submit" className="bg-purple-400 text-white rounded px-4 py-2 mt-2 hover:bg-purple-500 transition font-semibold shadow">Save</button>
+              </form>
             </div>
           </div>
         )}
