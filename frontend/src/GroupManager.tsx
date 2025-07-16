@@ -95,13 +95,15 @@ const GroupManager: React.FC = () => {
     setRenamingIdx(idx);
     setRenameInput(currentName);
   };
-  const handleRenameGroup = (idx: number) => {
-    if (!renameInput.trim()) return;
+  const handleRenameGroup = (groupIdx: number, newName: string) => {
     setGroups(groups => groups.map((g, i) =>
-      i === idx ? { ...g, name: renameInput.trim() } : g
+      i === groupIdx ? { ...g, name: newName } : g
     ));
-    setRenamingIdx(null);
-    setRenameInput('');
+  };
+
+  const handleDeleteGroup = (groupIdx: number) => {
+    setGroups(groups => groups.filter((_, i) => i !== groupIdx));
+    setSelectedGroupIdx(null);
   };
 
   return (
@@ -141,6 +143,10 @@ const GroupManager: React.FC = () => {
           group={groups[selectedGroupIdx]}
           groupIdx={selectedGroupIdx}
           onClose={() => setSelectedGroupIdx(null)}
+          onRenameGroup={handleRenameGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onAddMemberToGroup={handleAddMemberToGroup}
+          onRemoveMemberFromGroup={handleRemoveMemberFromGroup}
         />
       )}
       {/* Modal */}
