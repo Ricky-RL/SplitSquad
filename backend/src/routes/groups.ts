@@ -1,25 +1,110 @@
 import { Router } from 'express';
+import { PrismaClient } from '@prisma/client';
 
 const router = Router();
+const prisma = new PrismaClient();
 
-router.get('/', (req, res) => {
-  res.json({ message: 'List all groups (not implemented)' });
+// For now, use a hardcoded userId (replace with real auth later)
+const HARDCODED_USER_ID = 'demo-user-id';
+
+// List all groups for the user
+router.get('/', async (req, res) => {
+  try {
+    const userId = req.query.userId as string || HARDCODED_USER_ID;
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { groups: true },
+    });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user.groups);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch groups' });
+  }
 });
 
-router.post('/', (req, res) => {
-  res.json({ message: 'Create group (not implemented)' });
+// Get group details (members, expenses) for user
+router.get('/:id', async (req, res) => {
+  try {
+    const userId = req.query.userId as string || HARDCODED_USER_ID;
+    const groupId = req.params.id;
+    // Only allow if user is a member
+    const group = await prisma.group.findFirst({
+      where: {
+        id: groupId,
+        members: { some: { id: userId } },
+      },
+      include: {
+        members: { select: { id: true, name: true, email: true } },
+        expenses: true,
+      },
+    });
+    if (!group) return res.status(404).json({ error: 'Group not found or access denied' });
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch group details' });
+  }
 });
 
-router.get('/:id', (req, res) => {
-  res.json({ message: `Get group ${req.params.id} (not implemented)` });
+// Create group for user (with name, members)
+router.post('/', async (req, res) => {
+  try {
+    const userId = req.body.userId || HARDCODED_USER_ID;
+    const { name, memberIds } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    // Always include creator as a member
+    const uniqueMemberIds = Array.from(new Set([userId, ...(memberIds || [])]));
+    const group = await prisma.group.create({
+      data: {
+        name,
+        members: {
+          connect: uniqueMemberIds.map((id: string) => ({ id })),
+        },
+      },
+      include: { members: true },
+    });
+    res.status(201).json(group);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create group' });
+  }
 });
 
-router.put('/:id', (req, res) => {
-  res.json({ message: `Update group ${req.params.id} (not implemented)` });
+// Update group name (if user is a member)
+router.put('/:id', async (req, res) => {
+  try {
+    const userId = req.body.userId || HARDCODED_USER_ID;
+    const groupId = req.params.id;
+    const { name } = req.body;
+    if (!name) return res.status(400).json({ error: 'Name required' });
+    // Check membership
+    const group = await prisma.group.findFirst({
+      where: { id: groupId, members: { some: { id: userId } } },
+    });
+    if (!group) return res.status(404).json({ error: 'Group not found or access denied' });
+    const updated = await prisma.group.update({
+      where: { id: groupId },
+      data: { name },
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update group' });
+  }
 });
 
-router.delete('/:id', (req, res) => {
-  res.json({ message: `Delete group ${req.params.id} (not implemented)` });
+// Delete group (if user is a member)
+router.delete('/:id', async (req, res) => {
+  try {
+    const userId = req.body.userId || HARDCODED_USER_ID;
+    const groupId = req.params.id;
+    // Check membership
+    const group = await prisma.group.findFirst({
+      where: { id: groupId, members: { some: { id: userId } } },
+    });
+    if (!group) return res.status(404).json({ error: 'Group not found or access denied' });
+    await prisma.group.delete({ where: { id: groupId } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete group' });
+  }
 });
 
 export default router; 
