@@ -10,14 +10,22 @@ const HARDCODED_USER_ID = 'demo-user-id';
 // List all groups for the user
 router.get('/', async (req, res) => {
   try {
-    const userId = req.query.userId as string || HARDCODED_USER_ID;
-    const userEmail = req.query.userEmail as string || '';
+    const userId = req.query.userId as string;
+    const userEmail = req.query.userEmail as string;
+    console.log('Fetching groups for:', { userId, userEmail });
+    if (!userId && !userEmail) {
+      return res.status(400).json({ error: 'Missing userId and userEmail' });
+    }
+    let orConditions = [];
+    if (userId) {
+      orConditions.push({ members: { some: { id: userId } } });
+    }
+    if (userEmail) {
+      orConditions.push({ pendingMembers: { some: { email: userEmail } } });
+    }
     const groups = await prisma.group.findMany({
       where: {
-        OR: [
-          { members: { some: { id: userId } } },
-          { pendingMembers: { some: { email: userEmail } } },
-        ],
+        OR: orConditions,
       },
       include: {
         members: true,
@@ -26,7 +34,8 @@ router.get('/', async (req, res) => {
     });
     res.json(groups);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch groups' });
+    console.error('Error fetching groups:', err);
+    res.status(500).json({ error: 'Failed to fetch groups', details: err?.message });
   }
 });
 
