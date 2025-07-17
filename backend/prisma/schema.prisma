@@ -14,12 +14,13 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   name      String
-  email     String   @unique
+  email     String    @unique
   password  String
-  groups    Group[]  @relation("GroupMembers")
-  createdAt DateTime @default(now())
+  groups    Group[]   @relation("GroupMembers")
+  expenses  Expense[] @relation("PaidExpenses")
+  createdAt DateTime  @default(now())
 }
 
 model Group {
@@ -36,7 +37,7 @@ model Expense {
   groupId     String
   description String
   amount      Float
-  payer       User     @relation(fields: [payerId], references: [id])
+  payer       User     @relation("PaidExpenses", fields: [payerId], references: [id])
   payerId     String
   splitType   String   // 'all' or 'subset'
   splitWith   String[] // array of user IDs (for subset splits)
