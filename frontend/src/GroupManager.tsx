@@ -56,7 +56,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
     setMemberError('');
   };
 
-  const handleCreateGroup = (e: React.FormEvent) => {
+  const handleCreateGroup = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!groupName.trim()) {
       setError('Group name cannot be empty.');
@@ -72,8 +72,27 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       setError('Please add at least one member.');
       return;
     }
-    setGroups([...groups, { name: groupName.trim(), members: allMembers }]);
-    setShowModal(false);
+    try {
+      const res = await fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUser.email, // use email as userId for now
+          name: groupName.trim(),
+          memberIds: allMembers.map(m => m.email),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || 'Failed to create group.');
+        return;
+      }
+      const group = await res.json();
+      setGroups([...groups, group]);
+      setShowModal(false);
+    } catch (err) {
+      setError('Failed to create group.');
+    }
   };
 
   // Remove old handleAddMemberToGroup and handleRemoveMemberFromGroup
@@ -127,14 +146,14 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
           groups.map((g, idx) => (
             <div
               key={idx}
-              className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition"
+              className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition items-center text-center"
               onClick={() => setSelectedGroupIdx(idx)}
             >
               <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
               <div className="text-gray-700 font-medium mb-1">Members:</div>
-              <ul className="ml-0 flex flex-col gap-1 items-start">
+              <ul className="flex flex-col gap-1 items-center w-full">
                 {g.members.map((m, i) => (
-                  <li key={i} className="text-gray-700 text-sm pl-1">
+                  <li key={i} className="text-gray-700 text-sm">
                     <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
                       {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
                     </span>

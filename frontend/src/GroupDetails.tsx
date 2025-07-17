@@ -219,10 +219,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2 text-xs text-gray-500 flex-wrap mb-2">
-                {group.members.map((m, i) => (
-                  <span key={i} className="bg-gray-100 rounded px-2 py-0.5 font-medium">{m.name}</span>
-                ))}
+              {/* Members section - improved layout */}
+              <div className="flex flex-col items-center my-4">
+                <div className="font-semibold text-gray-700 mb-1">Members:</div>
+                <ul className="space-y-1">
+                  {group.members.map((m, i) => (
+                    <li key={i} className="text-sm text-gray-700 flex items-center justify-center">
+                      <span className="font-medium">{m.name}</span>
+                      <span className="ml-2 text-xs text-gray-500">({m.email})</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
               {/* Tabs (no SETTINGS) */}
               <div className="flex w-full gap-2 mt-1 border-b border-gray-200">
