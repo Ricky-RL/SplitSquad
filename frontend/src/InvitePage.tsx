@@ -27,16 +27,8 @@ const InvitePage: React.FC = () => {
         id: user.id,
         email: user.email,
         name: user.user_metadata?.full_name || user.email
-      })
+      }),
     })
-      .then(() => {
-        // Now join the group
-        return fetch(getApiUrl(`/api/groups/${groupId}/join`), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: user.email, name: user.user_metadata?.full_name || user.email }),
-        });
-      })
       .then(res => {
         if (res.ok) setStatus('joined');
         else setStatus('error');
