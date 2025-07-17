@@ -222,4 +222,44 @@ router.post('/:id/remove-member', async (req, res) => {
   }
 });
 
+// Join group via invite link
+router.post('/:id/join', async (req, res) => {
+  const groupId = req.params.id;
+  const { email, name } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  try {
+    // Check if user exists
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Create user if not exists (optional, or you can return error)
+      user = await prisma.user.create({ data: { email, name: name || email } });
+    }
+    // Add as confirmed member if not already
+    let group = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        members: { connect: { id: user.id } },
+        pendingMembers: { deleteMany: { email } },
+      },
+      include: { members: true, pendingMembers: true },
+    });
+    // Update all 'split evenly' expenses to include all current members and pending members
+    const allMemberIds = group.members.map(m => m.id);
+    const allPendingEmails = group.pendingMembers.map(pm => pm.email);
+    const newSplitWith = [...allMemberIds, ...allPendingEmails];
+    const expenses = await prisma.expense.findMany({
+      where: { groupId, splitType: 'all' },
+    });
+    for (const expense of expenses) {
+      await prisma.expense.update({
+        where: { id: expense.id },
+        data: { splitWith: newSplitWith },
+      });
+    }
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to join group' });
+  }
+});
+
 export default router; 
