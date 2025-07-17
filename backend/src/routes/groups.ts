@@ -35,7 +35,8 @@ router.get('/', async (req, res) => {
     res.json(groups);
   } catch (err) {
     console.error('Error fetching groups:', err);
-    res.status(500).json({ error: 'Failed to fetch groups', details: err?.message });
+    const errorMsg = typeof err === 'object' && err && 'message' in err ? (err as any).message : String(err);
+    res.status(500).json({ error: 'Failed to fetch groups', details: errorMsg });
   }
 });
 
