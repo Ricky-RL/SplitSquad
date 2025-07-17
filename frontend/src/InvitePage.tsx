@@ -4,7 +4,7 @@ import { getApiUrl } from './utils.js';
 import { useNavigate } from 'react-router-dom';
 
 const InvitePage: React.FC = () => {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
   const [status, setStatus] = useState<'idle' | 'joining' | 'joined' | 'error' | 'notfound'>('idle');
   const [error, setError] = useState('');
   const params = new URLSearchParams(window.location.search);
@@ -16,6 +16,7 @@ const InvitePage: React.FC = () => {
       setStatus('notfound');
       return;
     }
+    if (loading) return;
     if (!user) return;
     setStatus('joining');
     // Upsert user to ensure pending invites are converted
@@ -41,7 +42,7 @@ const InvitePage: React.FC = () => {
         else setStatus('error');
       })
       .catch(() => setStatus('error'));
-  }, [user, groupId]);
+  }, [user, loading, groupId]);
 
   useEffect(() => {
     if (status === 'joined') {
