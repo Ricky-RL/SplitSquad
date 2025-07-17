@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { getApiUrl } from './utils.js';
 
 interface Member {
   id?: string;
@@ -114,7 +115,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   async function refreshGroupDetails() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/groups/${groupId}?userId=${userId}`);
+      const res = await fetch(getApiUrl(`/api/groups/${groupId}?userId=${userId}`));
       if (res.ok) {
         const data = await res.json();
         setFetchedGroup(data);
@@ -127,7 +128,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- RENAME GROUP ---
   async function handleRenameGroup(newName: string) {
     try {
-      const res = await fetch(`/api/groups/${groupId}`, {
+      const res = await fetch(getApiUrl(`/api/groups/${groupId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newName, userId }),
@@ -144,7 +145,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- ADD MEMBER ---
   async function handleAddMember(member: Member) {
     try {
-      const res = await fetch(`/api/groups/${groupId}/add-member`, {
+      const res = await fetch(getApiUrl(`/api/groups/${groupId}/add-member`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: member.email, name: member.name }),
@@ -160,7 +161,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- REMOVE MEMBER ---
   async function handleRemoveMember(email: string) {
     try {
-      const res = await fetch(`/api/groups/${groupId}/remove-member`, {
+      const res = await fetch(getApiUrl(`/api/groups/${groupId}/remove-member`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),
@@ -176,7 +177,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- DELETE GROUP ---
   async function handleDeleteGroup() {
     try {
-      const res = await fetch(`/api/groups/${groupId}`, {
+      const res = await fetch(getApiUrl(`/api/groups/${groupId}`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId }),
@@ -190,7 +191,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- DELETE EXPENSE ---
   async function handleDeleteExpense(expenseId: string) {
     try {
-      const res = await fetch(`/api/expenses/${expenseId}`, {
+      const res = await fetch(getApiUrl(`/api/expenses/${expenseId}`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -203,7 +204,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   // --- EDIT EXPENSE ---
   async function handleEditExpense(expenseId: string, updated: any) {
     try {
-      const res = await fetch(`/api/expenses/${expenseId}`, {
+      const res = await fetch(getApiUrl(`/api/expenses/${expenseId}`), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updated),
@@ -219,7 +220,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
     setExpensesLoading(true);
     setExpensesError('');
     try {
-      const res = await fetch(`/api/expenses?groupId=${groupId}`);
+      const res = await fetch(getApiUrl(`/api/expenses?groupId=${groupId}`));
       if (res.ok) {
         const data = await res.json();
         setExpenses(data);
@@ -242,7 +243,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
       setExpensesLoading(true);
       setExpensesError('');
       try {
-        const res = await fetch(`/api/expenses?groupId=${groupId}`);
+        const res = await fetch(getApiUrl(`/api/expenses?groupId=${groupId}`));
         if (res.ok) {
           const data = await res.json();
           setExpenses(data);
@@ -310,7 +311,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
             ...allPending.map(pm => pm.email)
           ]
         : allMembers.filter(m => expenseForm.splitMembers.includes(m.name)).map(m => m.id);
-      const res = await fetch('/api/expenses', {
+      const res = await fetch(getApiUrl('/api/expenses'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

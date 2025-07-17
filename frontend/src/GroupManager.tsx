@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import GroupDetails from './GroupDetails.js';
+import { getApiUrl } from './utils.js';
 
 interface Member {
   name: string;
@@ -36,7 +37,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   useEffect(() => {
     async function fetchGroups() {
       try {
-        const res = await fetch(`/api/groups?userId=${currentUser.email}`);
+        const res = await fetch(getApiUrl(`/api/groups?userId=${currentUser.email}`));
         if (res.ok) {
           const data = await res.json();
           setGroups(data);
@@ -96,7 +97,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       return;
     }
     try {
-      const res = await fetch('/api/groups', {
+      const res = await fetch(getApiUrl('/api/groups'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -4,6 +4,7 @@ import { useSupabaseUser } from './useSupabaseUser.js';
 import { supabase } from './supabaseClient.js';
 import GroupManager from './GroupManager.js';
 import { useEffect, useState } from 'react';
+import { getApiUrl } from './utils.js';
 
 function App() {
   const user = useSupabaseUser();
@@ -21,7 +22,7 @@ function App() {
   useEffect(() => {
     if (user) {
       // Fetch user from backend to check for etransfer info
-      fetch(`/api/users/${user.id}`)
+      fetch(getApiUrl(`/api/users/${user.id}`))
         .then(res => res.ok ? res.json() : null)
         .then(data => {
           if (!data || (!data.etransferEmail && !data.etransferPhone)) {
@@ -33,7 +34,7 @@ function App() {
           }
         });
       // Upsert user as before
-      fetch('/api/users', {
+      fetch(getApiUrl('/api/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -54,7 +55,7 @@ function App() {
     setOnboardingLoading(true);
     setOnboardingError('');
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch(getApiUrl('/api/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -81,7 +82,7 @@ function App() {
     setSettingsLoading(true);
     setSettingsError('');
     try {
-      const res = await fetch('/api/users', {
+      const res = await fetch(getApiUrl('/api/users'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
