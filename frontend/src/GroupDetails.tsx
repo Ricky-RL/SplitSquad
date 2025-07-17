@@ -5,10 +5,13 @@ interface Member {
   name: string;
   email: string;
   phone?: string;
+  etransferEmail?: string;
+  etransferPhone?: string;
 }
 
 interface PendingMember {
   email: string;
+  name?: string;
 }
 interface Group {
   name: string;
@@ -30,6 +33,13 @@ interface GroupDetailsProps {
 }
 
 const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, userId, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup, onGroupUpdated }) => {
+  // Always compute members and pending at the very top
+  const allMembers: Member[] = (group.members || []);
+  const allPending: PendingMember[] = group.pendingMembers || [];
+  const allSplitMembers = [
+    ...allMembers.map(m => ({ id: m.id, name: m.name, email: m.email })),
+    ...allPending.map(pm => ({ id: undefined, name: pm.name || pm.email, email: pm.email })),
+  ];
   // Only use the expenses state and computed balances from user input
   const [expenses, setExpenses] = useState<any[]>([]); // State to hold expenses
   const [expensesLoading, setExpensesLoading] = useState(false);
@@ -41,7 +51,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
     payer: group.members[0]?.name || '',
     date: new Date().toISOString().slice(0, 10),
     splitType: 'all', // 'all' or 'subset'
-    splitMembers: group.members.map(m => m.name), // default all
+    splitMembers: allSplitMembers.map(m => m.name), // default all (confirmed + pending)
     image: null as File | null,
     imageUrl: '',
   });
@@ -77,6 +87,25 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   const [fetchedGroup, setFetchedGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(false);
   const userEmail = group.members[0]?.email;
+  const [showEtransferDropdown, setShowEtransferDropdown] = useState(false);
+  const etransferRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (etransferRef.current && !etransferRef.current.contains(event.target as Node)) {
+        setShowEtransferDropdown(false);
+      }
+    }
+    if (showEtransferDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEtransferDropdown]);
 
   // Helper to refresh group details from backend
   async function refreshGroupDetails() {
@@ -202,9 +231,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   }
 
   // Find the current user (by email) from the group members
-  const allMembers: Member[] = (fetchedGroup || group).members;
-  const currentUserObj = allMembers.find((m: Member) => m.email === userEmail);
-  const currentUserId = currentUserObj?.id;
+  const currentUserId = userId;
 
   // Fetch expenses from backend when groupId changes
   useEffect(() => {
@@ -234,7 +261,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
     if (name === 'image' && files && files[0]) {
       setExpenseForm(f => ({ ...f, image: files[0], imageUrl: URL.createObjectURL(files[0]) }));
     } else if (name === 'splitType') {
-      setExpenseForm(f => ({ ...f, splitType: value, splitMembers: value === 'all' ? group.members.map(m => m.name) : [] }));
+      setExpenseForm(f => ({ ...f, splitType: value, splitMembers: value === 'all' ? allSplitMembers.map(m => m.name) : [] }));
     } else {
       setExpenseForm(f => ({ ...f, [name]: value }));
     }
@@ -271,6 +298,15 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
       return;
     }
     try {
+      // For splitType 'all', use both confirmed and pending members for the split count and per-person calculation
+      const allMembers = (fetchedGroup || group).members;
+      const allPending = (fetchedGroup || group).pendingMembers || [];
+      const splitWith = expenseForm.splitType === 'all'
+        ? [
+            ...allMembers.map(m => m.id),
+            ...allPending.map(pm => pm.email)
+          ]
+        : allMembers.filter(m => expenseForm.splitMembers.includes(m.name)).map(m => m.id);
       const res = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -281,7 +317,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
           payerId: payer.id,
           date: expenseForm.date,
           splitType: expenseForm.splitType,
-          splitWith: expenseForm.splitType === 'all' ? allMembers.map(m => m.id) : allMembers.filter(m => expenseForm.splitMembers.includes(m.name)).map(m => m.id),
+          splitWith,
           imageUrl: expenseForm.imageUrl,
         }),
       });
@@ -311,27 +347,36 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
 
   // Compute balances from expenses
   function computeBalances() {
-    const allMembers = (fetchedGroup || group).members;
+    // Combine confirmed and pending members for balances
+    const allMembers = [
+      ...((fetchedGroup || group).members || []),
+      ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
+    ];
     const balances: Record<string, number> = {};
     allMembers.forEach(m => { balances[m.id!] = 0; });
     for (const exp of expenses) {
-      // Use splitWith (array of user IDs) or all members if not set
+      // Use splitWith (array of user IDs or emails) or all members if not set
       const splitWith: string[] = exp.splitWith && exp.splitWith.length > 0
         ? exp.splitWith
         : allMembers.map(m => m.id!);
       const share = exp.amount / splitWith.length;
       for (const memberId of splitWith) {
         if (memberId === exp.payerId) {
+          // Only credit payer if they are in the split
           balances[memberId] += exp.amount - share;
         } else {
           balances[memberId] -= share;
         }
       }
+      // If payer is NOT in splitWith, credit them the full amount
+      if (!splitWith.includes(exp.payerId)) {
+        balances[exp.payerId] += exp.amount;
+      }
     }
-    // Map balances to display with member names
+    // Map balances to display with member names (use email for pending)
     const result = allMembers.map(m => ({
       id: m.id!,
-      name: m.name,
+      name: m.name || m.email,
       amount: balances[m.id!] || 0,
     }));
     return result;
@@ -379,6 +424,41 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
               <div className="flex items-center justify-between mb-1">
                 <div className="text-2xl font-extrabold text-purple-400 truncate" title={displayGroup.name}>{displayGroup.name}</div>
                 <div className="flex items-center gap-2">
+                  {/* E-transfer dropdown button */}
+                  <div className="relative" ref={etransferRef}>
+                    <button
+                      className="p-2 rounded-full hover:bg-purple-100 text-purple-600 focus:outline-none"
+                      title="Show e-transfer addresses"
+                      onClick={() => setShowEtransferDropdown(v => !v)}
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a5 5 0 00-10 0v2a2 2 0 00-2 2v6a2 2 0 002 2h12a2 2 0 002-2v-6a2 2 0 00-2-2z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 17v.01" />
+                      </svg>
+                    </button>
+                    {showEtransferDropdown && (
+                      <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg z-50 p-4 border border-purple-100">
+                        <div className="font-semibold text-purple-500 mb-2">E-transfer Addresses</div>
+                        <ul className="space-y-2">
+                          {(displayGroup.members || []).map((m, i) => (
+                            <li key={i} className="text-sm text-gray-700 flex flex-col">
+                              <span className="font-medium">{m.name}</span>
+                              <span className="text-xs text-gray-500">{m.email}</span>
+                              {(m.etransferEmail || m.etransferPhone) ? (
+                                <span className="text-xs text-gray-600 mt-0.5">
+                                  {m.etransferEmail && <span>E-transfer: {m.etransferEmail}</span>}
+                                  {m.etransferEmail && m.etransferPhone && <span> | </span>}
+                                  {m.etransferPhone && <span>Phone: {m.etransferPhone}</span>}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400 italic">No e-transfer info</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                   {/* Settings Gear Icon */}
                   <div className="relative" ref={settingsRef}>
                     <button
@@ -421,7 +501,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                   )}
                   {displayGroup.pendingMembers && displayGroup.pendingMembers.map((pm, i) => (
                     <li key={"pending-" + i} className="text-sm text-gray-400 flex items-center justify-center italic">
-                      <span className="font-medium">{pm.email}</span>
+                      <span className="font-medium">{pm.name ? `${pm.name} (${pm.email})` : pm.email}</span>
                     </li>
                   ))}
                 </ul>
@@ -569,7 +649,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                                 <div className="flex items-center justify-end pr-2" style={{ width: `${p.amount / maxOwe * 100}%` }}>
                                   <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
                                     <span>{p.amount.toFixed(2)} $</span>
-                                    <span className="ml-2">{toMember ? toMember.name : p.to}</span>
+                                    <span className="ml-2">{toMember ? (toMember.id === currentUserId ? 'You' : toMember.name) : p.to}</span>
                                   </div>
                                 </div>
                                 <div style={{ width: '50%' }} />
@@ -614,7 +694,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                                 <li key={idx} className="flex items-center justify-between">
                                   <span className="font-medium text-gray-700">You</span>
                                   <span className="mx-2 text-gray-500">owe</span>
-                                  <span className="font-medium text-purple-400">{toMember ? toMember.name : p.to}</span>
+                                  <span className="font-medium text-purple-400">{toMember ? (toMember.id === currentUserId ? 'You' : toMember.name) : p.to}</span>
                                   <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
                                 </li>
                               );
@@ -779,9 +859,20 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                                 Evenly between selected
                               </label>
                             </div>
+                            {expenseForm.splitType === 'all' && (
+                              <div className="text-xs text-gray-600 mb-2">
+                                Splitting between <span className="font-semibold">{allSplitMembers.length}</span> people
+                                {Number(expenseForm.amount) > 0 && (
+                                  <>
+                                    {': '}
+                                    <span className="font-semibold">{(Number(expenseForm.amount) / allSplitMembers.length).toFixed(2)} $</span> per person
+                                  </>
+                                )}
+                              </div>
+                            )}
                             {expenseForm.splitType === 'subset' && (
                               <div className="flex flex-wrap gap-3">
-                                {group.members.map((m, i) => (
+                                {allSplitMembers.map((m, i) => (
                                   <label key={i} className="flex items-center gap-1 border border-gray-300 rounded-lg px-2 py-1 text-gray-900">
                                     <input
                                       type="checkbox"
@@ -967,7 +1058,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                 ))}
                 {group.pendingMembers && group.pendingMembers.map((pm, i) => (
                   <li key={"pending-" + i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
-                    <span className="text-gray-400 italic">{pm.email} <span className="text-xs">(invited)</span></span>
+                    <span className="text-gray-400 italic">{pm.name ? `${pm.name} (${pm.email})` : pm.email} <span className="text-xs">(invited)</span></span>
                     <button
                       className="bg-red-400 text-white rounded px-3 py-1 text-sm hover:bg-red-500 transition font-semibold"
                       onClick={() => {
@@ -1020,6 +1111,13 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                     return;
                   }
                   const allMembers = (fetchedGroup || group).members;
+                  const allPending = (fetchedGroup || group).pendingMembers || [];
+                  const splitWith = editExpenseForm.splitType === 'all'
+                    ? [
+                        ...allMembers.map(m => m.id),
+                        ...allPending.map(pm => pm.email)
+                      ]
+                    : allMembers.filter(m => editExpenseForm.splitMembers.includes(m.name)).map(m => m.id);
                   const payer = allMembers.find(m => m.name === editExpenseForm.payer);
                   if (!payer) {
                     setEditExpenseError('Payer not found.');
@@ -1031,7 +1129,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                     payerId: payer.id,
                     date: editExpenseForm.date,
                     splitType: editExpenseForm.splitType,
-                    splitWith: editExpenseForm.splitType === 'all' ? allMembers.map(m => m.id) : allMembers.filter(m => editExpenseForm.splitMembers.includes(m.name)).map(m => m.id),
+                    splitWith,
                     imageUrl: editExpenseForm.image ? URL.createObjectURL(editExpenseForm.image) : editExpenseForm.imageUrl,
                   };
                   const expenseId = expenses[expenseToEditIdx!].id;

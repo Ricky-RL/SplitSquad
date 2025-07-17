@@ -5,9 +5,12 @@ interface Member {
   name: string;
   email: string;
   phone?: string;
+  etransferEmail?: string;
+  etransferPhone?: string;
 }
 interface PendingMember {
   email: string;
+  name?: string;
 }
 interface Group {
   id: string;
@@ -109,7 +112,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       }
       const group = await res.json();
       setGroups([...groups, group]);
-      setShowModal(false);
+    setShowModal(false);
     } catch (err) {
       setError('Failed to create group.');
     }
@@ -166,23 +169,30 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       </button>
       <div className="space-y-6 mt-6">
         <div>
-          {groups.length === 0 ? (
-            <div className="text-gray-400 bg-white rounded-xl shadow p-6">No groups created yet.</div>
-          ) : (
-            groups.map((g, idx) => (
-              <div
-                key={idx}
+        {groups.length === 0 ? (
+          <div className="text-gray-400 bg-white rounded-xl shadow p-6">No groups created yet.</div>
+        ) : (
+          groups.map((g, idx) => (
+            <div
+              key={idx}
                 className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition items-center text-center"
-                onClick={() => setSelectedGroupIdx(idx)}
-              >
-                <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
-                <div className="text-gray-700 font-medium mb-1">Members:</div>
+              onClick={() => setSelectedGroupIdx(idx)}
+            >
+              <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
+              <div className="text-gray-700 font-medium mb-1">Members:</div>
                 <ul className="flex flex-col gap-1 items-center w-full">
-                  {g.members.map((m, i) => (
+                {g.members.map((m, i) => (
                     <li key={i} className="text-gray-700 text-sm">
-                      <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
-                        {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
-                      </span>
+                    <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
+                      {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
+                    </span>
+                      {(m.etransferEmail || m.etransferPhone) && (
+                        <div className="text-xs text-gray-500 mt-0.5">
+                          {m.etransferEmail && <span>E-transfer: {m.etransferEmail}</span>}
+                          {m.etransferEmail && m.etransferPhone && <span> | </span>}
+                          {m.etransferPhone && <span>Phone: {m.etransferPhone}</span>}
+                        </div>
+                      )}
                     </li>
                   ))}
                   {g.pendingMembers && g.pendingMembers.length > 0 && (
@@ -190,13 +200,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                   )}
                   {g.pendingMembers && g.pendingMembers.map((pm, i) => (
                     <li key={"pending-" + i} className="text-sm text-gray-400 italic">
-                      <span className="font-medium">{pm.email}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))
-          )}
+                      <span className="font-medium">{pm.name ? `${pm.name} (${pm.email})` : pm.email}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        )}
         </div>
       </div>
       {/* Group Details Overlay */}
