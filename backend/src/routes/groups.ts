@@ -19,8 +19,8 @@ router.get('/', async (req, res) => {
         ],
       },
       include: {
-        members: { select: { id: true, name: true, email: true, etransferEmail: true, etransferPhone: true } },
-        pendingMembers: { select: { email: true, name: true } },
+        members: true,
+        pendingMembers: true,
       },
     });
     res.json(groups);
@@ -41,8 +41,7 @@ router.get('/:id', async (req, res) => {
         members: { some: { id: userId } },
       },
       include: {
-        members: { select: { id: true, name: true, email: true, etransferEmail: true, etransferPhone: true } },
-        pendingMembers: { select: { email: true, name: true } },
+        members: { select: { id: true, name: true, email: true } },
         expenses: true,
       },
     });
@@ -57,10 +56,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const userId = req.body.userId || HARDCODED_USER_ID;
-    const { name, members } = req.body;
+    const { name, memberIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     // Always include creator as a member
-    const uniqueMemberEmails = Array.from(new Set([userId, ...(members ? members.map((m: any) => m.email) : [])]));
+    const uniqueMemberEmails = Array.from(new Set([userId, ...(memberIds || [])]));
     // Find users that exist
     const users = await prisma.user.findMany({
       where: { email: { in: uniqueMemberEmails } },
@@ -69,7 +68,7 @@ router.post('/', async (req, res) => {
     const existingUserIds = users.map(u => u.id);
     const existingUserEmails = users.map(u => u.email);
     // Emails that do not exist as users
-    const pendingMembers = (members || []).filter((m: any) => !existingUserEmails.includes(m.email));
+    const pendingEmails = uniqueMemberEmails.filter(email => !existingUserEmails.includes(email));
     // Create the group
     const group = await prisma.group.create({
       data: {
@@ -78,10 +77,10 @@ router.post('/', async (req, res) => {
           connect: existingUserIds.map(id => ({ id })),
         },
         pendingMembers: {
-          create: pendingMembers.map((m: any) => ({ email: m.email, name: m.name })),
+          create: pendingEmails.map(email => ({ email })),
         },
       },
-      include: { members: true, pendingMembers: { select: { email: true, name: true } } },
+      include: { members: true, pendingMembers: true },
     });
     res.status(201).json(group);
   } catch (err) {
@@ -145,39 +144,16 @@ router.post('/:id/add-member', async (req, res) => {
           members: { connect: { id: user.id } },
           pendingMembers: { deleteMany: { email } },
         },
-        include: { members: true, pendingMembers: { select: { email: true, name: true } } },
+        include: { members: true, pendingMembers: true },
       });
-
-      // --- NEW LOGIC: Update all 'split evenly' expenses to include new member ---
-      // Find all expenses in this group where splitType is 'all'
-      const expenses = await prisma.expense.findMany({
-        where: { groupId, splitType: 'all' },
-      });
-      for (const expense of expenses) {
-        // Only update if not already included
-        if (!expense.splitWith.includes(user.id)) {
-          await prisma.expense.update({
-            where: { id: expense.id },
-            data: {
-              splitWith: [...expense.splitWith, user.id],
-            },
-          });
-        }
-      }
-      // --- END NEW LOGIC ---
     } else {
       // Add as pending member if not already
       group = await prisma.group.update({
         where: { id: groupId },
         data: {
-          pendingMembers: {
-            connectOrCreate: {
-              where: { groupId_email: { groupId, email } },
-              create: { email, name },
-            },
-          },
+          pendingMembers: { connectOrCreate: { where: { groupId_email: { groupId, email } }, create: { email } } },
         },
-        include: { members: true, pendingMembers: { select: { email: true, name: true } } },
+        include: { members: true, pendingMembers: true },
       });
     }
     res.json(group);
