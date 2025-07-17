@@ -9,7 +9,7 @@ import InvitePage from './InvitePage.js';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 
 function App() {
-  const user = useSupabaseUser();
+  const { user, loading } = useSupabaseUser();
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [etransferEmail, setEtransferEmail] = useState('');
   const [etransferPhone, setEtransferPhone] = useState('');
@@ -104,6 +104,9 @@ function App() {
     }
   };
 
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center text-xl text-gray-400">Loading...</div>;
+  }
   if (!user) {
     return <SignIn />;
   }
