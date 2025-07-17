@@ -18,11 +18,24 @@ const InvitePage: React.FC = () => {
     }
     if (!user) return;
     setStatus('joining');
-    fetch(getApiUrl(`/api/groups/${groupId}/join`), {
+    // Upsert user to ensure pending invites are converted
+    fetch(getApiUrl('/api/users'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: user.email, name: user.user_metadata?.full_name || user.email }),
+      body: JSON.stringify({
+        id: user.id,
+        email: user.email,
+        name: user.user_metadata?.full_name || user.email
+      })
     })
+      .then(() => {
+        // Now join the group
+        return fetch(getApiUrl(`/api/groups/${groupId}/join`), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: user.email, name: user.user_metadata?.full_name || user.email }),
+        });
+      })
       .then(res => {
         if (res.ok) setStatus('joined');
         else setStatus('error');
