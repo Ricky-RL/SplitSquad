@@ -28,6 +28,7 @@ model User {
 model Group {
   id        String    @id @default(uuid())
   name      String
+  emoji     String?
   members   User[]    @relation("GroupMembers")
   expenses  Expense[]
   createdAt DateTime  @default(now())
