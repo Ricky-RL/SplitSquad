@@ -634,30 +634,46 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                   </div>
                   <div className="mt-4">
                     <div className="font-semibold text-gray-700 mb-2">Who owes to whom?</div>
-                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm">
-                      {(() => {
-                        const { pairwise, memberMap } = computePairwiseDebts();
-                        // Only keep positive entries and sort by the name of the person who owes money
-                        const filtered = pairwise
-                          .filter(p => p.amount > 0)
-                          .sort((a, b) => memberMap[a.from].name.localeCompare(memberMap[b.from].name));
-                        if (filtered.length === 0) {
-                          return <div className="text-gray-400">Everyone is settled up!</div>;
-                        }
-                        return (
-                          <ul className="space-y-2">
-                            {filtered.map((p, idx) => (
-                              <li key={idx} className="flex items-center justify-between">
-                                <span className="font-medium text-gray-700">{memberMap[p.from].name}</span>
-                                <span className="mx-2 text-gray-500">owes</span>
-                                <span className="font-medium text-purple-400">{memberMap[p.to].name}</span>
-                                <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
-                              </li>
-                            ))}
-                          </ul>
-                        );
-                      })()}
-                    </div>
+                    {(() => {
+                      const { pairwise, memberMap } = computePairwiseDebts();
+                      // Only keep positive entries and sort by the name of the person who owes money
+                      const filtered = pairwise
+                        .filter(p => p.amount > 0)
+                        .sort((a, b) => memberMap[a.from].name.localeCompare(memberMap[b.from].name));
+                      if (filtered.length === 0) {
+                        return <div className="text-gray-400">Everyone is settled up!</div>;
+                      }
+                      // Group by debtor
+                      const grouped: Record<string, typeof filtered> = {};
+                      filtered.forEach(p => {
+                        if (!grouped[p.from]) grouped[p.from] = [];
+                        grouped[p.from].push(p);
+                      });
+                      return (
+                        <div className="flex flex-col gap-4">
+                          {Object.keys(grouped).map((debtor, idx, arr) => (
+                            <div key={debtor}>
+                              <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
+                                <div className="font-semibold text-purple-500 mb-2">{memberMap[debtor].name} owes:</div>
+                                <ul className="space-y-1">
+                                  {grouped[debtor].map((p, i) => (
+                                    <li key={i} className="flex items-center justify-between">
+                                      <span className="font-medium text-gray-700">{memberMap[p.from].name}</span>
+                                      <span className="mx-2 text-gray-500">owes</span>
+                                      <span className="font-medium text-purple-400">{memberMap[p.to].name}</span>
+                                      <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              {idx < arr.length - 1 && (
+                                <hr className="my-4 border-t-2 border-purple-100" />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
