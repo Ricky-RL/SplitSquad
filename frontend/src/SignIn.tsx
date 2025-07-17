@@ -6,10 +6,11 @@ export default function SignIn() {
 
   const handleSignIn = async () => {
     setError(null);
+    const redirectUrl = window.location.origin + '/';
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: window.location.origin + '/',
+        redirectTo: redirectUrl,
       },
     });
     if (error) setError(error.message);
