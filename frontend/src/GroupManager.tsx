@@ -46,7 +46,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   useEffect(() => {
     async function fetchGroups() {
       try {
-        const res = await fetch(getApiUrl(`/api/groups?userId=${currentUser.email}`));
+        const res = await fetch(getApiUrl(`/api/groups?userId=${currentUser.id}&userEmail=${encodeURIComponent(currentUser.email)}`));
         if (res.ok) {
           const data = await res.json();
           setGroups(data);
