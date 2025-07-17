@@ -26,9 +26,10 @@ interface GroupDetailsProps {
   onDeleteGroup: (groupIdx: number) => void;
   onAddMemberToGroup: (groupIdx: number, member: Member) => void;
   onRemoveMemberFromGroup: (groupIdx: number, email: string) => void;
+  onGroupUpdated: (updatedGroup: Group) => void;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, userId, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup }) => {
+const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, userId, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup, onGroupUpdated }) => {
   // Only use the expenses state and computed balances from user input
   const [expenses, setExpenses] = useState<any[]>([]); // State to hold expenses
   const [expensesLoading, setExpensesLoading] = useState(false);
@@ -100,8 +101,10 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
         body: JSON.stringify({ name: newName, userId }),
       });
       if (res.ok) {
-        await refreshGroupDetails();
+        const updated = await res.json();
+        setFetchedGroup(updated);
         setRenameInput(newName);
+        onGroupUpdated(updated);
       }
     } catch {}
   }
@@ -115,7 +118,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
         body: JSON.stringify({ email: member.email, name: member.name }),
       });
       if (res.ok) {
-        await refreshGroupDetails();
+        const updated = await res.json();
+        setFetchedGroup(updated);
+        onGroupUpdated(updated);
       }
     } catch {}
   }
@@ -129,7 +134,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
         body: JSON.stringify({ email }),
       });
       if (res.ok) {
-        await refreshGroupDetails();
+        const updated = await res.json();
+        setFetchedGroup(updated);
+        onGroupUpdated(updated);
       }
     } catch {}
   }
@@ -146,6 +153,52 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
         onDeleteGroup(groupIdx);
       }
     } catch {}
+  }
+
+  // --- DELETE EXPENSE ---
+  async function handleDeleteExpense(expenseId: string) {
+    try {
+      const res = await fetch(`/api/expenses/${expenseId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (res.ok) {
+        await refreshExpenses();
+      }
+    } catch {}
+  }
+
+  // --- EDIT EXPENSE ---
+  async function handleEditExpense(expenseId: string, updated: any) {
+    try {
+      const res = await fetch(`/api/expenses/${expenseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updated),
+      });
+      if (res.ok) {
+        await refreshExpenses();
+      }
+    } catch {}
+  }
+
+  // Helper to refresh expenses from backend
+  async function refreshExpenses() {
+    setExpensesLoading(true);
+    setExpensesError('');
+    try {
+      const res = await fetch(`/api/expenses?groupId=${groupId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setExpenses(data);
+      } else {
+        setExpensesError('Failed to fetch expenses');
+      }
+    } catch (err) {
+      setExpensesError('Failed to fetch expenses');
+    } finally {
+      setExpensesLoading(false);
+    }
   }
 
   // Find the current user (by email) from the group members
@@ -601,8 +654,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                               <div className="flex gap-2 w-full justify-center">
                                 <button
                                   className="bg-red-500 text-white rounded px-4 py-2 hover:bg-red-600 transition font-semibold shadow"
-                                  onClick={() => {
-                                    setExpenses(prev => prev.filter((_, i) => i !== idx));
+                                  onClick={async () => {
+                                    const expenseId = expenses[idx].id;
+                                    await handleDeleteExpense(expenseId);
                                     setExpenseToDeleteIdx(null);
                                   }}
                                 >
@@ -644,13 +698,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                                     title="Edit expense"
                                     onClick={() => {
                                       setExpenseToEditIdx(idx);
+                                      const allMembers = (fetchedGroup || group).members;
                                       setEditExpenseForm({
                                         description: exp.description,
                                         amount: exp.amount.toString(),
-                                        payer: exp.payer,
+                                        payer: allMembers.find(m => m.id === exp.payerId)?.name || '',
                                         date: exp.date,
-                                        splitType: exp.split.startsWith('Evenly among:') ? 'subset' : 'all',
-                                        splitMembers: exp.split.startsWith('Evenly among:') ? exp.split.replace('Evenly among: ', '').split(',').map((s: string) => s.trim()).filter(Boolean) : group.members.map(m => m.name),
+                                        splitType: exp.splitType || 'all',
+                                        splitMembers: exp.splitWith && exp.splitWith.length > 0
+                                          ? allMembers.filter(m => exp.splitWith.includes(m.id)).map(m => m.name)
+                                          : allMembers.map(m => m.name),
                                         image: null,
                                         imageUrl: exp.imageUrl || '',
                                       });
@@ -901,8 +958,21 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                         }
                         handleRemoveMember(m.email);
                         setRemoveMemberError('');
-                        // If only one member left after removal, close modal
                         if (group.members.length - 1 <= 1) setShowRemoveMemberModal(false);
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </li>
+                ))}
+                {group.pendingMembers && group.pendingMembers.map((pm, i) => (
+                  <li key={"pending-" + i} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                    <span className="text-gray-400 italic">{pm.email} <span className="text-xs">(invited)</span></span>
+                    <button
+                      className="bg-red-400 text-white rounded px-3 py-1 text-sm hover:bg-red-500 transition font-semibold"
+                      onClick={() => {
+                        handleRemoveMember(pm.email);
+                        setRemoveMemberError('');
                       }}
                     >
                       Remove
@@ -934,7 +1004,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
               </button>
               <div className="text-xl font-bold text-purple-400 mb-4">Edit Expense</div>
               <form
-                onSubmit={e => {
+                onSubmit={async e => {
                   e.preventDefault();
                   setEditExpenseError('');
                   if (!editExpenseForm.description.trim() || !editExpenseForm.amount || isNaN(Number(editExpenseForm.amount)) || Number(editExpenseForm.amount) <= 0) {
@@ -949,20 +1019,24 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                     setEditExpenseError('Please select at least one member to split with.');
                     return;
                   }
-                  setExpenses(prev => prev.map((exp, i) =>
-                    i === expenseToEditIdx
-                      ? {
-                          description: editExpenseForm.description,
-                          amount: Number(editExpenseForm.amount),
-                          payer: editExpenseForm.payer,
-                          date: editExpenseForm.date,
-                          split: editExpenseForm.splitType === 'all' ? 'Evenly' : `Evenly among: ${editExpenseForm.splitMembers.join(', ')}`,
-                          imageUrl: editExpenseForm.image ? URL.createObjectURL(editExpenseForm.image) : editExpenseForm.imageUrl,
-                        }
-                      : exp
-                  ));
+                  const allMembers = (fetchedGroup || group).members;
+                  const payer = allMembers.find(m => m.name === editExpenseForm.payer);
+                  if (!payer) {
+                    setEditExpenseError('Payer not found.');
+                    return;
+                  }
+                  const updated = {
+                    description: editExpenseForm.description,
+                    amount: editExpenseForm.amount,
+                    payerId: payer.id,
+                    date: editExpenseForm.date,
+                    splitType: editExpenseForm.splitType,
+                    splitWith: editExpenseForm.splitType === 'all' ? allMembers.map(m => m.id) : allMembers.filter(m => editExpenseForm.splitMembers.includes(m.name)).map(m => m.id),
+                    imageUrl: editExpenseForm.image ? URL.createObjectURL(editExpenseForm.image) : editExpenseForm.imageUrl,
+                  };
+                  const expenseId = expenses[expenseToEditIdx!].id;
+                  await handleEditExpense(expenseId, updated);
                   setShowEditExpenseModal(false);
-                  setExpenseToEditIdx(null);
                 }}
                 className="flex flex-col gap-4"
               >

@@ -151,6 +151,11 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
     setSelectedGroupIdx(null);
   };
 
+  // Update a group in the groups array
+  const handleGroupUpdated = (updatedGroup: Group) => {
+    setGroups(groups => groups.map(g => g.id === updatedGroup.id ? updatedGroup : g));
+  };
+
   return (
     <div className="w-full max-w-xl mx-auto mt-8">
       <button
@@ -200,12 +205,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
           group={groups[selectedGroupIdx]}
           groupId={groups[selectedGroupIdx].id}
           groupIdx={selectedGroupIdx}
+          userId={currentUser.id}
           onClose={() => setSelectedGroupIdx(null)}
           onRenameGroup={handleRenameGroup}
           onDeleteGroup={handleDeleteGroup}
           onAddMemberToGroup={handleAddMemberToGroup}
           onRemoveMemberFromGroup={handleRemoveMemberFromGroup}
-          userId={currentUser.id}
+          onGroupUpdated={handleGroupUpdated}
         />
       )}
       {/* Modal */}
