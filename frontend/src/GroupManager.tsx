@@ -11,7 +11,11 @@ interface Group {
   members: Member[];
 }
 
-const GroupManager: React.FC = () => {
+interface GroupManagerProps {
+  currentUser: { name: string; email: string };
+}
+
+const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [groups, setGroups] = useState<Group[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [groupName, setGroupName] = useState('');
@@ -43,7 +47,7 @@ const GroupManager: React.FC = () => {
       setMemberError('Name and email are required.');
       return;
     }
-    if (members.some(m => m.email === email)) {
+    if (members.some(m => m.email === email) || email === currentUser.email) {
       setMemberError('A member with this email already exists.');
       return;
     }
@@ -62,11 +66,13 @@ const GroupManager: React.FC = () => {
       setError('Group name already exists.');
       return;
     }
-    if (members.length === 0) {
+    // Always include the current user as a member
+    const allMembers = [currentUser, ...members.filter(m => m.email !== currentUser.email)];
+    if (allMembers.length === 0) {
       setError('Please add at least one member.');
       return;
     }
-    setGroups([...groups, { name: groupName.trim(), members }]);
+    setGroups([...groups, { name: groupName.trim(), members: allMembers }]);
     setShowModal(false);
   };
 
@@ -129,7 +135,7 @@ const GroupManager: React.FC = () => {
               <ul className="ml-4 text-sm text-gray-500 list-disc list-inside mb-2">
                 {g.members.map((m, i) => (
                   <li key={i}>
-                    <span>{m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
+                    <span>{m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
                   </li>
                 ))}
               </ul>
@@ -171,55 +177,65 @@ const GroupManager: React.FC = () => {
                 autoFocus
               />
               {error && <div className="text-red-500 text-sm">{error}</div>}
-              <div>
-                <form onSubmit={handleAddMember} className="flex flex-col gap-2 mb-2 w-full">
-                  <div className="flex flex-wrap gap-2 w-full">
-                    <input
-                      type="text"
-                      value={memberInput.name}
-                      onChange={e => setMemberInput({ ...memberInput, name: e.target.value })}
-                      className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
-                      placeholder="Name (required)"
-                    />
-                    <input
-                      type="email"
-                      value={memberInput.email}
-                      onChange={e => setMemberInput({ ...memberInput, email: e.target.value })}
-                      className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
-                      placeholder="Email (required)"
-                    />
-                    <input
-                      type="tel"
-                      value={memberInput.phone}
-                      onChange={e => setMemberInput({ ...memberInput, phone: e.target.value })}
-                      className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
-                      placeholder="Phone (optional)"
-                    />
-                    <button
-                      onClick={handleAddMember}
-                      className="bg-green-600 text-white rounded px-4 py-1 h-10 hover:bg-green-700 transition font-semibold"
-                      type="button"
-                    >
-                      Add
-                    </button>
-                  </div>
-                </form>
-                {memberError && <div className="text-red-500 text-sm mb-1">{memberError}</div>}
-                <div className="ml-2 mb-2">
-                  <span className="font-medium text-gray-900">Members:</span>
-                  {members.length === 0 ? (
-                    <span className="text-gray-400 ml-2">No members yet.</span>
-                  ) : (
-                    <ul className="list-disc list-inside ml-4 text-gray-900 space-y-1 mt-1">
-                      {members.map((m, i) => (
-                        <li key={i} className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
-                          <span>{m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
+              <form onSubmit={handleAddMember} className="flex flex-col gap-2 mb-2 w-full">
+                <div className="flex flex-wrap gap-2 w-full">
+                  <input
+                    type="text"
+                    value={memberInput.name}
+                    onChange={e => setMemberInput({ ...memberInput, name: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
+                    placeholder="Name (required)"
+                  />
+                  <input
+                    type="email"
+                    value={memberInput.email}
+                    onChange={e => setMemberInput({ ...memberInput, email: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
+                    placeholder="Email (required)"
+                  />
+                  <input
+                    type="tel"
+                    value={memberInput.phone}
+                    onChange={e => setMemberInput({ ...memberInput, phone: e.target.value })}
+                    className="border border-gray-300 rounded px-2 py-1 min-w-0 flex-1 bg-white text-gray-900"
+                    placeholder="Phone (optional)"
+                  />
+                  <button
+                    onClick={handleAddMember}
+                    className="bg-green-600 text-white rounded px-4 py-1 h-10 hover:bg-green-700 transition font-semibold"
+                    type="button"
+                  >
+                    Add
+                  </button>
                 </div>
-              </div>
+              </form>
+              {memberError && <div className="text-red-500 text-sm mb-1">{memberError}</div>}
+              <span className="font-medium text-gray-900">Members:</span>
+              <ul className="flex flex-col gap-2 ml-0 mt-1">
+                <li className="flex items-center gap-3 bg-gray-100 rounded px-3 py-2 min-h-[40px]">
+                  <span className="font-semibold text-gray-900">{currentUser.name}</span>
+                  <span className="text-gray-500 text-xs ml-1">({currentUser.email})</span>
+                  <span className="ml-auto inline-block bg-purple-200 text-purple-700 rounded px-2 py-0.5 text-xs font-bold">You</span>
+                </li>
+                {members.filter(m => m.email !== currentUser.email).length === 0 ? (
+                  <li className="text-gray-400 px-3 py-2">No other members yet.</li>
+                ) : (
+                  members.filter(m => m.email !== currentUser.email).map((m, i) => (
+                    <li key={i + 1} className="flex items-center gap-3 bg-gray-100 rounded px-3 py-2 min-h-[40px]">
+                      <span className="font-semibold text-gray-900">{m.name}</span>
+                      <span className="text-gray-500 text-xs ml-1">({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
+                      <button
+                        type="button"
+                        className="ml-auto px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-semibold"
+                        onClick={() => setMembers(members => members.filter(mem => mem.email !== m.email))}
+                        aria-label={`Remove ${m.name}`}
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
               <button
                 type="submit"
                 className="bg-blue-600 text-white rounded px-4 py-2 mt-2 hover:bg-blue-700 transition font-semibold shadow"
