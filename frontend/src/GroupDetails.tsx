@@ -93,6 +93,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   const userEmail = group.members[0]?.email;
   const [showEtransferDropdown, setShowEtransferDropdown] = useState(false);
   const etransferRef = useRef<HTMLDivElement>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -536,6 +537,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                         <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowRenameModal(true); setShowSettings(false); }}>Rename group</button>
                         <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowAddMemberModal(true); setShowSettings(false); }}>Add member</button>
                         <button className="w-full text-left px-4 py-2 text-gray-700 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowRemoveMemberModal(true); setShowSettings(false); }}>Remove member</button>
+                        <button className="w-full text-left px-4 py-2 text-purple-500 hover:bg-purple-100 focus:bg-purple-200 transition" onClick={() => { setShowInviteModal(true); setShowSettings(false); }}>Invite link</button>
                         <button className="w-full text-left px-4 py-2 text-red-500 hover:bg-red-100 focus:bg-red-200 transition" onClick={() => { setShowDeleteModal(true); setShowSettings(false); }}>Delete group</button>
                       </div>
                     )}
@@ -1272,6 +1274,35 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                 {editExpenseError && <div className="text-red-500 text-sm font-medium">{editExpenseError}</div>}
                 <button type="submit" className="bg-purple-400 text-white rounded px-4 py-2 mt-2 hover:bg-purple-500 transition font-semibold shadow">Save</button>
               </form>
+            </div>
+          </div>
+        )}
+        {/* Invite Link Modal */}
+        {showInviteModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+            <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-xs relative animate-fadeInUp flex flex-col items-center">
+              <div className="text-lg font-bold text-purple-500 mb-4">Invite Link</div>
+              <input
+                type="text"
+                value={`${window.location.origin}/invite?groupId=${groupId}`}
+                readOnly
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 text-gray-900 bg-gray-50"
+                onFocus={e => e.target.select()}
+              />
+              <button
+                className="flex-1 bg-purple-400 text-white rounded px-4 py-2 hover:bg-purple-500 transition font-semibold shadow mb-2"
+                onClick={() => {
+                  navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${groupId}`);
+                }}
+              >
+                Copy Link
+              </button>
+              <button
+                className="flex-1 bg-gray-200 text-gray-700 rounded px-4 py-2 hover:bg-gray-300 transition font-semibold shadow"
+                onClick={() => setShowInviteModal(false)}
+              >
+                Close
+              </button>
             </div>
           </div>
         )}

@@ -16,15 +16,16 @@ const InvitePage: React.FC = () => {
     }
     if (!user) return;
     setStatus('joining');
-    // TODO: Call backend to join group
-    // For now, just simulate success
-    setTimeout(() => {
-      setStatus('joined');
-    }, 1000);
-    // Example for real backend call:
-    // fetch(getApiUrl(`/api/groups/${groupId}/join`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: user.email }) })
-    //   .then(res => res.ok ? setStatus('joined') : setStatus('error'))
-    //   .catch(() => setStatus('error'));
+    fetch(getApiUrl(`/api/groups/${groupId}/join`), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: user.email, name: user.user_metadata?.full_name || user.email }),
+    })
+      .then(res => {
+        if (res.ok) setStatus('joined');
+        else setStatus('error');
+      })
+      .catch(() => setStatus('error'));
   }, [user, groupId]);
 
   if (!groupId || status === 'notfound') {
