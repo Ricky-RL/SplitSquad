@@ -29,6 +29,7 @@ model Group {
   members   User[]    @relation("GroupMembers")
   expenses  Expense[]
   createdAt DateTime  @default(now())
+  pendingMembers GroupPendingMember[]
 }
 
 model Expense {
@@ -44,4 +45,12 @@ model Expense {
   date        DateTime
   imageUrl    String?
   createdAt   DateTime @default(now())
+}
+
+model GroupPendingMember {
+  id        String   @id @default(uuid())
+  group     Group    @relation(fields: [groupId], references: [id])
+  groupId   String
+  email     String
+  invitedAt DateTime @default(now())
 }
