@@ -33,6 +33,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [error, setError] = useState('');
   const [memberError, setMemberError] = useState('');
   const [selectedGroupIdx, setSelectedGroupIdx] = useState<number | null>(null);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [newGroupId, setNewGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchGroups() {
@@ -113,7 +115,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       }
       const group = await res.json();
       setGroups([...groups, group]);
-    setShowModal(false);
+      setShowModal(false);
+      setNewGroupId(group.id);
+      setShowInviteModal(true);
     } catch (err) {
       setError('Failed to create group.');
     }
@@ -313,6 +317,35 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                 Save Group
               </button>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Invite Link Modal after group creation */}
+      {showInviteModal && newGroupId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+          <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-xs relative animate-fadeInUp flex flex-col items-center">
+            <div className="text-lg font-bold text-purple-500 mb-4">Invite Link</div>
+            <input
+              type="text"
+              value={`${window.location.origin}/invite?groupId=${newGroupId}`}
+              readOnly
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 text-gray-900 bg-gray-50"
+              onFocus={e => e.target.select()}
+            />
+            <button
+              className="flex-1 bg-purple-400 text-white rounded px-4 py-2 hover:bg-purple-500 transition font-semibold shadow mb-2"
+              onClick={() => {
+                navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${newGroupId}`);
+              }}
+            >
+              Copy Link
+            </button>
+            <button
+              className="flex-1 bg-gray-200 text-gray-700 rounded px-4 py-2 hover:bg-gray-300 transition font-semibold shadow"
+              onClick={() => setShowInviteModal(false)}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
