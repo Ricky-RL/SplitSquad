@@ -14,6 +14,21 @@ router.post('/', async (req, res) => {
       update: { email, name },
       create: { id, email, name, password: '' }, // password blank for OAuth users
     });
+
+    // Convert pending group invites to confirmed memberships
+    const pendingInvites = await prisma.groupPendingMember.findMany({
+      where: { email },
+    });
+    for (const invite of pendingInvites) {
+      await prisma.group.update({
+        where: { id: invite.groupId },
+        data: {
+          members: { connect: { id: user.id } },
+        },
+      });
+      await prisma.groupPendingMember.delete({ where: { id: invite.id } });
+    }
+
     res.json(user);
   } catch (err) {
     res.status(500).json({ error: 'Failed to upsert user' });
