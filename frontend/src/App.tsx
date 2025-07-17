@@ -1,8 +1,8 @@
 import './App.css';
-import SignIn from './SignIn';
-import { useSupabaseUser } from './useSupabaseUser';
-import { supabase } from './supabaseClient';
-import GroupManager from './GroupManager';
+import SignIn from './SignIn.js';
+import { useSupabaseUser } from './useSupabaseUser.js';
+import { supabase } from './supabaseClient.js';
+import GroupManager from './GroupManager.js';
 import { useEffect, useState } from 'react';
 
 function App() {

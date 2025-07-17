@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { supabase } from './supabaseClient';
+import { supabase } from './supabaseClient.js';
 
 export default function SignIn() {
   const [error, setError] = useState<string | null>(null);

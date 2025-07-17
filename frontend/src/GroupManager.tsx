@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import GroupDetails from './GroupDetails';
+import GroupDetails from './GroupDetails.js';
 
 interface Member {
   name: string;
