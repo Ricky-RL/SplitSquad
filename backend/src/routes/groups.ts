@@ -127,4 +127,71 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// Add member to group (by email)
+router.post('/:id/add-member', async (req, res) => {
+  const groupId = req.params.id;
+  const { email, name } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  try {
+    // Check if user exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    let group;
+    if (user) {
+      // Add as confirmed member if not already
+      group = await prisma.group.update({
+        where: { id: groupId },
+        data: {
+          members: { connect: { id: user.id } },
+          pendingMembers: { deleteMany: { email } },
+        },
+        include: { members: true, pendingMembers: true },
+      });
+    } else {
+      // Add as pending member if not already
+      group = await prisma.group.update({
+        where: { id: groupId },
+        data: {
+          pendingMembers: { connectOrCreate: { where: { groupId_email: { groupId, email } }, create: { email } } },
+        },
+        include: { members: true, pendingMembers: true },
+      });
+    }
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to add member' });
+  }
+});
+
+// Remove member from group (by email)
+router.post('/:id/remove-member', async (req, res) => {
+  const groupId = req.params.id;
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
+  try {
+    // Remove from confirmed members if exists
+    const user = await prisma.user.findUnique({ where: { email } });
+    let group = await prisma.group.findUnique({ where: { id: groupId }, include: { members: true, pendingMembers: true } });
+    if (user) {
+      group = await prisma.group.update({
+        where: { id: groupId },
+        data: {
+          members: { disconnect: { id: user.id } },
+        },
+        include: { members: true, pendingMembers: true },
+      });
+    }
+    // Remove from pending members if exists
+    group = await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        pendingMembers: { deleteMany: { email } },
+      },
+      include: { members: true, pendingMembers: true },
+    });
+    res.json(group);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove member' });
+  }
+});
+
 export default router; 
