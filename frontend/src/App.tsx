@@ -31,7 +31,7 @@ function App() {
   }
 
   return (
-    <div className="fixed inset-0 min-h-screen min-w-screen bg-gradient-to-br from-purple-50 to-purple-100 flex items-center justify-center">
+    <div className="min-h-screen min-w-screen bg-gradient-to-br from-purple-50 to-purple-100 flex flex-col items-center">
       <button
         onClick={handleSignOut}
         style={{ position: 'absolute', top: 24, right: 32, padding: '10px 20px', fontSize: 16, borderRadius: 6, background: '#e0e7ff', color: '#7c3aed', border: 'none' }}
