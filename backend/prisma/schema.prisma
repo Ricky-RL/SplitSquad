@@ -21,6 +21,8 @@ model User {
   groups    Group[]   @relation("GroupMembers")
   expenses  Expense[] @relation("PaidExpenses")
   createdAt DateTime  @default(now())
+  etransferEmail String?
+  etransferPhone String?
 }
 
 model Group {
