@@ -48,12 +48,38 @@ router.get('/:id', (req, res) => {
   res.json({ message: `Get expense ${req.params.id} (not implemented)` });
 });
 
-router.put('/:id', (req, res) => {
-  res.json({ message: `Update expense ${req.params.id} (not implemented)` });
+// PUT /api/expenses/:id
+router.put('/:id', async (req, res) => {
+  const expenseId = req.params.id;
+  const { description, amount, payerId, date, splitType, splitWith, imageUrl } = req.body;
+  try {
+    const updated = await prisma.expense.update({
+      where: { id: expenseId },
+      data: {
+        description,
+        amount: amount !== undefined ? parseFloat(amount) : undefined,
+        payerId,
+        date: date ? new Date(date) : undefined,
+        splitType,
+        splitWith,
+        imageUrl,
+      },
+    });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update expense' });
+  }
 });
 
-router.delete('/:id', (req, res) => {
-  res.json({ message: `Delete expense ${req.params.id} (not implemented)` });
+// DELETE /api/expenses/:id
+router.delete('/:id', async (req, res) => {
+  const expenseId = req.params.id;
+  try {
+    await prisma.expense.delete({ where: { id: expenseId } });
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete expense' });
+  }
 });
 
 export default router; 
