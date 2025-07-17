@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
 interface Member {
+  id?: string;
   name: string;
   email: string;
   phone?: string;
@@ -17,6 +18,7 @@ interface Group {
 
 interface GroupDetailsProps {
   group: Group;
+  groupId: string;
   groupIdx: number;
   onClose: () => void;
   onRenameGroup: (groupIdx: number, newName: string) => void;
@@ -25,9 +27,11 @@ interface GroupDetailsProps {
   onRemoveMemberFromGroup: (groupIdx: number, email: string) => void;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup }) => {
+const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup }) => {
   // Only use the expenses state and computed balances from user input
   const [expenses, setExpenses] = useState<any[]>([]); // State to hold expenses
+  const [expensesLoading, setExpensesLoading] = useState(false);
+  const [expensesError, setExpensesError] = useState('');
   // Add Expense form state
   const [expenseForm, setExpenseForm] = useState({
     description: '',
@@ -68,6 +72,36 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
     imageUrl: '',
   });
   const [editExpenseError, setEditExpenseError] = useState('');
+  const [fetchedGroup, setFetchedGroup] = useState<Group | null>(null);
+  const [loading, setLoading] = useState(false);
+  const userEmail = group.members[0]?.email;
+
+  // Find the current user (by email) from the group members
+  const allMembers: Member[] = (fetchedGroup || group).members;
+  const currentUserObj = allMembers.find((m: Member) => m.email === userEmail);
+  const currentUserId = currentUserObj?.id;
+
+  // Fetch expenses from backend when groupId changes
+  useEffect(() => {
+    async function fetchExpenses() {
+      setExpensesLoading(true);
+      setExpensesError('');
+      try {
+        const res = await fetch(`/api/expenses?groupId=${groupId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setExpenses(data);
+        } else {
+          setExpensesError('Failed to fetch expenses');
+        }
+      } catch (err) {
+        setExpensesError('Failed to fetch expenses');
+      } finally {
+        setExpensesLoading(false);
+      }
+    }
+    fetchExpenses();
+  }, [groupId]);
 
   // Handle form changes
   function handleExpenseChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
@@ -89,11 +123,9 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
       };
     });
   }
-  function handleExpenseSubmit(e: React.FormEvent) {
+  async function handleExpenseSubmit(e: React.FormEvent) {
     e.preventDefault();
     setExpenseError('');
-    // This validation needs to be updated to reflect the new expenseForm structure
-    // For now, it will just check if description and amount are present
     if (!expenseForm.description.trim() || !expenseForm.amount || isNaN(Number(expenseForm.amount)) || Number(expenseForm.amount) <= 0) {
       setExpenseError('Please enter a valid description and amount.');
       return;
@@ -106,69 +138,85 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
       setExpenseError('Please select at least one member to split with.');
       return;
     }
-    // Add expense
-    setExpenses(prev => [
-      {
-        description: expenseForm.description,
-        amount: Number(expenseForm.amount),
-        payer: expenseForm.payer,
-        date: expenseForm.date,
-        split: expenseForm.splitType === 'all' ? 'Evenly' : `Evenly among: ${expenseForm.splitMembers.join(', ')}`,
-        imageUrl: expenseForm.imageUrl,
-      },
-      ...prev,
-    ]);
-    setShowExpenseModal(false);
-    setActiveTab('BALANCES'); // Automatically return to BALANCES tab
-    setExpenseForm({
-      description: '',
-      amount: '',
-      payer: group.members[0]?.name || '',
-      date: new Date().toISOString().slice(0, 10),
-      splitType: 'all',
-      splitMembers: group.members.map(m => m.name),
-      image: null,
-      imageUrl: '',
-    });
+    // Find payerId by matching name to group members
+    const allMembers = (fetchedGroup || group).members;
+    const payer = allMembers.find(m => m.name === expenseForm.payer);
+    if (!payer) {
+      setExpenseError('Payer not found.');
+      return;
+    }
+    try {
+      const res = await fetch('/api/expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          groupId,
+          description: expenseForm.description,
+          amount: expenseForm.amount,
+          payerId: payer.id,
+          date: expenseForm.date,
+          splitType: expenseForm.splitType,
+          splitWith: expenseForm.splitType === 'all' ? allMembers.map(m => m.id) : allMembers.filter(m => expenseForm.splitMembers.includes(m.name)).map(m => m.id),
+          imageUrl: expenseForm.imageUrl,
+        }),
+      });
+      if (!res.ok) {
+        setExpenseError('Failed to add expense.');
+        return;
+      }
+      // Refresh expenses list
+      const newExpense = await res.json();
+      setExpenses(prev => [newExpense, ...prev]);
+      setShowExpenseModal(false);
+      setActiveTab('BALANCES');
+      setExpenseForm({
+        description: '',
+        amount: '',
+        payer: allMembers[0]?.name || '',
+        date: new Date().toISOString().slice(0, 10),
+        splitType: 'all',
+        splitMembers: allMembers.map(m => m.name),
+        image: null,
+        imageUrl: '',
+      });
+    } catch (err) {
+      setExpenseError('Failed to add expense.');
+    }
   }
 
   // Compute balances from expenses
   function computeBalances() {
+    const allMembers = (fetchedGroup || group).members;
     const balances: Record<string, number> = {};
-    group.members.forEach(m => { balances[m.name] = 0; });
+    allMembers.forEach(m => { balances[m.id!] = 0; });
     for (const exp of expenses) {
-      // Determine who is included in the split
-      let splitMembers: string[];
-      if (exp.split && exp.split.startsWith('Evenly among:')) {
-        splitMembers = exp.split.replace('Evenly among: ', '').split(',').map((s: string) => s.trim()).filter(Boolean);
-      } else {
-        splitMembers = group.members.map(m => m.name);
-      }
-      // Normalize names for matching
-      splitMembers = splitMembers.map(n => n.trim().toLowerCase());
-      const payerName = (exp.payer || '').trim().toLowerCase();
-      const groupNames = group.members.map(m => m.name);
-      const share = exp.amount / splitMembers.length;
-      // Payer pays for everyone, so gets reimbursed by others
-      for (const name of splitMembers) {
-        const memberName = groupNames.find(n => n.trim().toLowerCase() === name);
-        if (!memberName) continue;
-        if (name === payerName) {
-          balances[memberName] += exp.amount - share;
+      // Use splitWith (array of user IDs) or all members if not set
+      const splitWith: string[] = exp.splitWith && exp.splitWith.length > 0
+        ? exp.splitWith
+        : allMembers.map(m => m.id!);
+      const share = exp.amount / splitWith.length;
+      for (const memberId of splitWith) {
+        if (memberId === exp.payerId) {
+          balances[memberId] += exp.amount - share;
         } else {
-          balances[memberName] -= share;
+          balances[memberId] -= share;
         }
       }
     }
-    const result = group.members.map(m => ({ name: m.name, amount: balances[m.name] }));
-    console.log('DEBUG balances:', result, 'expenses:', expenses);
+    // Map balances to display with member names
+    const result = allMembers.map(m => ({
+      id: m.id!,
+      name: m.name,
+      amount: balances[m.id!] || 0,
+    }));
     return result;
   }
   const balances = computeBalances();
 
+  const displayGroup = fetchedGroup || group;
   try {
-    // Defensive: If group or group.members is missing or not an array, show a message
-    if (!group || !Array.isArray(group.members) || group.members.length === 0) {
+    // Defensive: If displayGroup or displayGroup.members is missing or not an array, show a message
+    if (!displayGroup || !Array.isArray(displayGroup.members) || displayGroup.members.length === 0) {
       return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-100/80 via-purple-100/80 to-purple-200/80 backdrop-blur-[3px]">
           <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-lg relative animate-fadeInUp text-center">
@@ -186,6 +234,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
       );
     }
 
+    if (loading) {
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-purple-100/80 via-purple-100/80 to-purple-200/80 backdrop-blur-[3px]">
+          <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-lg relative animate-fadeInUp text-center">
+            <div className="text-xl font-bold text-purple-400 mb-4">Loading group details...</div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <>
         {/* Modal Overlay and Content */}
@@ -194,7 +252,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
             {/* Top Bar */}
             <div className="w-full px-6 pt-6 pb-2 flex flex-col gap-1 border-b border-gray-200 bg-white rounded-t-2xl">
               <div className="flex items-center justify-between mb-1">
-                <div className="text-2xl font-extrabold text-purple-400 truncate" title={group.name}>{group.name}</div>
+                <div className="text-2xl font-extrabold text-purple-400 truncate" title={displayGroup.name}>{displayGroup.name}</div>
                 <div className="flex items-center gap-2">
                   {/* Settings Gear Icon */}
                   <div className="relative" ref={settingsRef}>
@@ -227,16 +285,16 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
               <div className="flex flex-col items-center my-4">
                 <div className="font-semibold text-gray-700 mb-1">Members:</div>
                 <ul className="space-y-1">
-                  {group.members.map((m, i) => (
+                  {displayGroup.members.map((m, i) => (
                     <li key={i} className="text-sm text-gray-700 flex items-center justify-center">
                       <span className="font-medium">{m.name}</span>
                       <span className="ml-2 text-xs text-gray-500">({m.email})</span>
                     </li>
                   ))}
-                  {group.pendingMembers && group.pendingMembers.length > 0 && (
+                  {displayGroup.pendingMembers && displayGroup.pendingMembers.length > 0 && (
                     <li className="text-xs text-gray-500 mt-2">Invited (pending):</li>
                   )}
-                  {group.pendingMembers && group.pendingMembers.map((pm, i) => (
+                  {displayGroup.pendingMembers && displayGroup.pendingMembers.map((pm, i) => (
                     <li key={"pending-" + i} className="text-sm text-gray-400 flex items-center justify-center italic">
                       <span className="font-medium">{pm.email}</span>
                     </li>
@@ -364,7 +422,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                         const creditor = creditors[j];
                         const payAmount = Math.min(-debtor.amount, creditor.amount);
                         if (payAmount > 0.01) {
-                          payments.push({ from: debtor.name, to: creditor.name, amount: payAmount });
+                          payments.push({ from: debtor.id, to: creditor.id, amount: payAmount });
                         }
                         debtor.amount += payAmount;
                         creditor.amount -= payAmount;
@@ -372,24 +430,27 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                         if (Math.abs(creditor.amount) < 0.01) j++;
                       }
                       // Only show what current user owes
-                      const myPayments = payments.filter(p => p.from === currentUser);
+                      const myPayments = payments.filter(p => p.from === currentUserId);
                       if (myPayments.length === 0) {
                         return <div className="text-gray-400">You do not owe anyone!</div>;
                       }
                       const maxOwe = Math.max(...myPayments.map(p => p.amount), 1);
                       return (
                         <div className="flex flex-col gap-2">
-                          {myPayments.map((p, idx) => (
-                            <div key={idx} className="flex items-center w-full h-10">
-                              <div className="flex items-center justify-end pr-2" style={{ width: `${p.amount / maxOwe * 100}%` }}>
-                                <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
-                                  <span>{p.amount.toFixed(2)} $</span>
-                                  <span className="ml-2">{p.to}</span>
+                          {myPayments.map((p, idx) => {
+                            const toMember = allMembers.find(m => m.id === p.to);
+                            return (
+                              <div key={idx} className="flex items-center w-full h-10">
+                                <div className="flex items-center justify-end pr-2" style={{ width: `${p.amount / maxOwe * 100}%` }}>
+                                  <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
+                                    <span>{p.amount.toFixed(2)} $</span>
+                                    <span className="ml-2">{toMember ? toMember.name : p.to}</span>
+                                  </div>
                                 </div>
+                                <div style={{ width: '50%' }} />
                               </div>
-                              <div style={{ width: '50%' }} />
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       );
                     })()}
@@ -408,7 +469,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                           const creditor = creditors[j];
                           const payAmount = Math.min(-debtor.amount, creditor.amount);
                           if (payAmount > 0.01) {
-                            payments.push({ from: debtor.name, to: creditor.name, amount: payAmount });
+                            payments.push({ from: debtor.id, to: creditor.id, amount: payAmount });
                           }
                           debtor.amount += payAmount;
                           creditor.amount -= payAmount;
@@ -416,20 +477,23 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                           if (Math.abs(creditor.amount) < 0.01) j++;
                         }
                         // Only show what current user owes
-                        const myPayments = payments.filter(p => p.from === currentUser);
+                        const myPayments = payments.filter(p => p.from === currentUserId);
                         if (myPayments.length === 0) {
                           return <div className="text-gray-400">You do not owe anyone!</div>;
                         }
                         return (
                           <ul className="space-y-2">
-                            {myPayments.map((p, idx) => (
-                              <li key={idx} className="flex items-center justify-between">
-                                <span className="font-medium text-gray-700">You</span>
-                                <span className="mx-2 text-gray-500">owe</span>
-                                <span className="font-medium text-purple-400">{p.to}</span>
-                                <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
-                              </li>
-                            ))}
+                            {myPayments.map((p, idx) => {
+                              const toMember = allMembers.find(m => m.id === p.to);
+                              return (
+                                <li key={idx} className="flex items-center justify-between">
+                                  <span className="font-medium text-gray-700">You</span>
+                                  <span className="mx-2 text-gray-500">owe</span>
+                                  <span className="font-medium text-purple-400">{toMember ? toMember.name : p.to}</span>
+                                  <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         );
                       })()}
@@ -448,7 +512,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                       + Add Expense
                     </button>
                   </div>
-                  {expenses.length === 0 ? (
+                  {expensesLoading ? (
+                    <div className="text-gray-400 bg-white rounded-xl shadow p-6">Loading expenses...</div>
+                  ) : expensesError ? (
+                    <div className="text-red-500 bg-white rounded-xl shadow p-6">{expensesError}</div>
+                  ) : expenses.length === 0 ? (
                     <div className="text-gray-400 bg-white rounded-xl shadow p-6">No expenses yet.</div>
                   ) : (
                     <ul className="space-y-4">
@@ -480,7 +548,17 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                             <>
                               <div>
                                 <div className="font-semibold text-gray-800">{exp.description}</div>
-                                <div className="text-gray-500 text-sm">Paid by <span className="font-medium">{exp.payer}</span> on {exp.date}</div>
+                                <div className="text-gray-500 text-sm">
+                                  Paid by{' '}
+                                  <span className="font-medium">
+                                    {(() => {
+                                      const allMembers = (fetchedGroup || group).members;
+                                      const payer = allMembers.find(m => m.id === exp.payerId);
+                                      return payer ? `${payer.name} (${payer.email})` : 'Unknown';
+                                    })()}
+                                  </span>{' '}
+                                  on {exp.date}
+                                </div>
                                 {exp.imageUrl && (
                                   <img src={exp.imageUrl} alt="Proof" className="mt-2 rounded-lg max-h-24 max-w-xs border border-gray-200" />
                                 )}

@@ -10,6 +10,7 @@ interface PendingMember {
   email: string;
 }
 interface Group {
+  id: string;
   name: string;
   members: Member[];
   pendingMembers?: PendingMember[];
@@ -197,6 +198,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       {selectedGroupIdx !== null && groups[selectedGroupIdx] && (
         <GroupDetails
           group={groups[selectedGroupIdx]}
+          groupId={groups[selectedGroupIdx].id}
           groupIdx={selectedGroupIdx}
           onClose={() => setSelectedGroupIdx(null)}
           onRenameGroup={handleRenameGroup}
