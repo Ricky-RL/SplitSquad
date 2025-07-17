@@ -55,4 +55,5 @@ model GroupPendingMember {
   groupId   String
   email     String
   invitedAt DateTime @default(now())
+  @@unique([groupId, email])
 }
