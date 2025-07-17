@@ -19,8 +19,8 @@ router.get('/', async (req, res) => {
         ],
       },
       include: {
-        members: true,
-        pendingMembers: true,
+        members: { select: { id: true, name: true, email: true, etransferEmail: true, etransferPhone: true } },
+        pendingMembers: { select: { email: true, name: true } },
       },
     });
     res.json(groups);
@@ -41,7 +41,8 @@ router.get('/:id', async (req, res) => {
         members: { some: { id: userId } },
       },
       include: {
-        members: { select: { id: true, name: true, email: true } },
+        members: { select: { id: true, name: true, email: true, etransferEmail: true, etransferPhone: true } },
+        pendingMembers: { select: { email: true, name: true } },
         expenses: true,
       },
     });
@@ -56,10 +57,10 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const userId = req.body.userId || HARDCODED_USER_ID;
-    const { name, memberIds } = req.body;
+    const { name, members } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     // Always include creator as a member
-    const uniqueMemberEmails = Array.from(new Set([userId, ...(memberIds || [])]));
+    const uniqueMemberEmails = Array.from(new Set([userId, ...(members ? members.map((m: any) => m.email) : [])]));
     // Find users that exist
     const users = await prisma.user.findMany({
       where: { email: { in: uniqueMemberEmails } },
@@ -68,7 +69,7 @@ router.post('/', async (req, res) => {
     const existingUserIds = users.map(u => u.id);
     const existingUserEmails = users.map(u => u.email);
     // Emails that do not exist as users
-    const pendingEmails = uniqueMemberEmails.filter(email => !existingUserEmails.includes(email));
+    const pendingMembers = (members || []).filter((m: any) => !existingUserEmails.includes(m.email));
     // Create the group
     const group = await prisma.group.create({
       data: {
@@ -77,10 +78,10 @@ router.post('/', async (req, res) => {
           connect: existingUserIds.map(id => ({ id })),
         },
         pendingMembers: {
-          create: pendingEmails.map(email => ({ email })),
+          create: pendingMembers.map((m: any) => ({ email: m.email, name: m.name })),
         },
       },
-      include: { members: true, pendingMembers: true },
+      include: { members: true, pendingMembers: { select: { email: true, name: true } } },
     });
     res.status(201).json(group);
   } catch (err) {
@@ -144,16 +145,39 @@ router.post('/:id/add-member', async (req, res) => {
           members: { connect: { id: user.id } },
           pendingMembers: { deleteMany: { email } },
         },
-        include: { members: true, pendingMembers: true },
+        include: { members: true, pendingMembers: { select: { email: true, name: true } } },
       });
+
+      // --- NEW LOGIC: Update all 'split evenly' expenses to include new member ---
+      // Find all expenses in this group where splitType is 'all'
+      const expenses = await prisma.expense.findMany({
+        where: { groupId, splitType: 'all' },
+      });
+      for (const expense of expenses) {
+        // Only update if not already included
+        if (!expense.splitWith.includes(user.id)) {
+          await prisma.expense.update({
+            where: { id: expense.id },
+            data: {
+              splitWith: [...expense.splitWith, user.id],
+            },
+          });
+        }
+      }
+      // --- END NEW LOGIC ---
     } else {
       // Add as pending member if not already
       group = await prisma.group.update({
         where: { id: groupId },
         data: {
-          pendingMembers: { connectOrCreate: { where: { groupId_email: { groupId, email } }, create: { email } } },
+          pendingMembers: {
+            connectOrCreate: {
+              where: { groupId_email: { groupId, email } },
+              create: { email, name },
+            },
+          },
         },
-        include: { members: true, pendingMembers: true },
+        include: { members: true, pendingMembers: { select: { email: true, name: true } } },
       });
     }
     res.json(group);
