@@ -10,10 +10,17 @@ const HARDCODED_USER_ID = 'demo-user-id';
 // List all groups for the user
 router.get('/', async (req, res) => {
   try {
-    const userId = req.query.userId as string || HARDCODED_USER_ID;
+    const userEmail = req.query.userId as string || HARDCODED_USER_ID;
     const user = await prisma.user.findUnique({
-      where: { id: userId },
-      include: { groups: true },
+      where: { email: userEmail },
+      include: {
+        groups: {
+          include: {
+            members: true,
+            pendingMembers: true,
+          },
+        },
+      },
     });
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user.groups);
@@ -52,15 +59,28 @@ router.post('/', async (req, res) => {
     const { name, memberIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     // Always include creator as a member
-    const uniqueMemberIds = Array.from(new Set([userId, ...(memberIds || [])]));
+    const uniqueMemberEmails = Array.from(new Set([userId, ...(memberIds || [])]));
+    // Find users that exist
+    const users = await prisma.user.findMany({
+      where: { email: { in: uniqueMemberEmails } },
+      select: { id: true, email: true },
+    });
+    const existingUserIds = users.map(u => u.id);
+    const existingUserEmails = users.map(u => u.email);
+    // Emails that do not exist as users
+    const pendingEmails = uniqueMemberEmails.filter(email => !existingUserEmails.includes(email));
+    // Create the group
     const group = await prisma.group.create({
       data: {
         name,
         members: {
-          connect: uniqueMemberIds.map((id: string) => ({ id })),
+          connect: existingUserIds.map(id => ({ id })),
+        },
+        pendingMembers: {
+          create: pendingEmails.map(email => ({ email })),
         },
       },
-      include: { members: true },
+      include: { members: true, pendingMembers: true },
     });
     res.status(201).json(group);
   } catch (err) {
