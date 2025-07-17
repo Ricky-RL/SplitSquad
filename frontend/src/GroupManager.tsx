@@ -131,11 +131,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
               onClick={() => setSelectedGroupIdx(idx)}
             >
               <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
-              <div className="text-gray-700 font-medium">Members:</div>
-              <ul className="ml-4 text-sm text-gray-500 list-disc list-inside mb-2">
+              <div className="text-gray-700 font-medium mb-1">Members:</div>
+              <ul className="ml-0 flex flex-col gap-1 items-start">
                 {g.members.map((m, i) => (
-                  <li key={i}>
-                    <span>{m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
+                  <li key={i} className="text-gray-700 text-sm pl-1">
+                    <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
+                      {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -215,7 +217,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                 <li className="flex items-center gap-3 bg-gray-100 rounded px-3 py-2 min-h-[40px]">
                   <span className="font-semibold text-gray-900">{currentUser.name}</span>
                   <span className="text-gray-500 text-xs ml-1">({currentUser.email})</span>
-                  <span className="ml-auto inline-block bg-purple-200 text-purple-700 rounded px-2 py-0.5 text-xs font-bold">You</span>
+                  <span className="ml-auto flex items-center justify-center px-2 py-0.5 min-w-[64px] h-7 bg-purple-200 text-purple-700 rounded text-xs font-bold text-center">You</span>
                 </li>
                 {members.filter(m => m.email !== currentUser.email).length === 0 ? (
                   <li className="text-gray-400 px-3 py-2">No other members yet.</li>
@@ -226,7 +228,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                       <span className="text-gray-500 text-xs ml-1">({m.email}{m.phone ? `, ${m.phone}` : ''})</span>
                       <button
                         type="button"
-                        className="ml-auto px-2 py-0.5 bg-red-500 text-white rounded hover:bg-red-600 text-xs font-semibold"
+                        className="ml-auto flex items-center justify-center px-2 py-0.5 min-w-[64px] h-7 bg-red-500 text-white rounded text-xs font-semibold text-center hover:bg-red-600"
                         onClick={() => setMembers(members => members.filter(mem => mem.email !== m.email))}
                         aria-label={`Remove ${m.name}`}
                       >
