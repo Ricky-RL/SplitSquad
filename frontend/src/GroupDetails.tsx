@@ -6,9 +6,13 @@ interface Member {
   phone?: string;
 }
 
+interface PendingMember {
+  email: string;
+}
 interface Group {
   name: string;
   members: Member[];
+  pendingMembers?: PendingMember[];
 }
 
 interface GroupDetailsProps {
@@ -227,6 +231,14 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                     <li key={i} className="text-sm text-gray-700 flex items-center justify-center">
                       <span className="font-medium">{m.name}</span>
                       <span className="ml-2 text-xs text-gray-500">({m.email})</span>
+                    </li>
+                  ))}
+                  {group.pendingMembers && group.pendingMembers.length > 0 && (
+                    <li className="text-xs text-gray-500 mt-2">Invited (pending):</li>
+                  )}
+                  {group.pendingMembers && group.pendingMembers.map((pm, i) => (
+                    <li key={"pending-" + i} className="text-sm text-gray-400 flex items-center justify-center italic">
+                      <span className="font-medium">{pm.email}</span>
                     </li>
                   ))}
                 </ul>
@@ -693,7 +705,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupIdx, onClose, o
                       setAddMemberError('Name and email are required.');
                       return;
                     }
-                    if (group.members.some(m => m.email === email)) {
+                    if (group.members.some(m => m.email === email) || group.pendingMembers?.some(pm => pm.email === email)) {
                       setAddMemberError('A member with this email already exists.');
                       return;
                     }

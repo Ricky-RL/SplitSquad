@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import GroupDetails from './GroupDetails';
 
 interface Member {
@@ -6,9 +6,13 @@ interface Member {
   email: string;
   phone?: string;
 }
+interface PendingMember {
+  email: string;
+}
 interface Group {
   name: string;
   members: Member[];
+  pendingMembers?: PendingMember[];
 }
 
 interface GroupManagerProps {
@@ -24,6 +28,21 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [error, setError] = useState('');
   const [memberError, setMemberError] = useState('');
   const [selectedGroupIdx, setSelectedGroupIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    async function fetchGroups() {
+      try {
+        const res = await fetch(`/api/groups?userId=${currentUser.email}`);
+        if (res.ok) {
+          const data = await res.json();
+          setGroups(data);
+        }
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+    fetchGroups();
+  }, [currentUser.email]);
 
   const openModal = () => {
     setShowModal(true);
@@ -140,29 +159,39 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
         Create Group
       </button>
       <div className="space-y-6 mt-6">
-        {groups.length === 0 ? (
-          <div className="text-gray-400 bg-white rounded-xl shadow p-6">No groups created yet.</div>
-        ) : (
-          groups.map((g, idx) => (
-            <div
-              key={idx}
-              className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition items-center text-center"
-              onClick={() => setSelectedGroupIdx(idx)}
-            >
-              <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
-              <div className="text-gray-700 font-medium mb-1">Members:</div>
-              <ul className="flex flex-col gap-1 items-center w-full">
-                {g.members.map((m, i) => (
-                  <li key={i} className="text-gray-700 text-sm">
-                    <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
-                      {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        )}
+        <div>
+          {groups.length === 0 ? (
+            <div className="text-gray-400 bg-white rounded-xl shadow p-6">No groups created yet.</div>
+          ) : (
+            groups.map((g, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition items-center text-center"
+                onClick={() => setSelectedGroupIdx(idx)}
+              >
+                <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
+                <div className="text-gray-700 font-medium mb-1">Members:</div>
+                <ul className="flex flex-col gap-1 items-center w-full">
+                  {g.members.map((m, i) => (
+                    <li key={i} className="text-gray-700 text-sm">
+                      <span className={m.email === currentUser.email ? 'font-bold text-purple-700' : ''}>
+                        {m.email === currentUser.email ? 'You' : m.name} ({m.email}{m.phone ? `, ${m.phone}` : ''})
+                      </span>
+                    </li>
+                  ))}
+                  {g.pendingMembers && g.pendingMembers.length > 0 && (
+                    <li className="text-xs text-gray-500 mt-2">Invited (pending):</li>
+                  )}
+                  {g.pendingMembers && g.pendingMembers.map((pm, i) => (
+                    <li key={"pending-" + i} className="text-sm text-gray-400 italic">
+                      <span className="font-medium">{pm.email}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          )}
+        </div>
       </div>
       {/* Group Details Overlay */}
       {selectedGroupIdx !== null && groups[selectedGroupIdx] && (
