@@ -17,7 +17,7 @@ interface Group {
 }
 
 interface GroupManagerProps {
-  currentUser: { name: string; email: string };
+  currentUser: { id: string; name: string; email: string };
 }
 
 const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
@@ -205,6 +205,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
           onDeleteGroup={handleDeleteGroup}
           onAddMemberToGroup={handleAddMemberToGroup}
           onRemoveMemberFromGroup={handleRemoveMemberFromGroup}
+          userId={currentUser.id}
         />
       )}
       {/* Modal */}

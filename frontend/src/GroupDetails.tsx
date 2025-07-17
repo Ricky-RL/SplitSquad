@@ -20,6 +20,7 @@ interface GroupDetailsProps {
   group: Group;
   groupId: string;
   groupIdx: number;
+  userId: string;
   onClose: () => void;
   onRenameGroup: (groupIdx: number, newName: string) => void;
   onDeleteGroup: (groupIdx: number) => void;
@@ -27,7 +28,7 @@ interface GroupDetailsProps {
   onRemoveMemberFromGroup: (groupIdx: number, email: string) => void;
 }
 
-const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup }) => {
+const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, userId, onClose, onRenameGroup, onDeleteGroup, onAddMemberToGroup, onRemoveMemberFromGroup }) => {
   // Only use the expenses state and computed balances from user input
   const [expenses, setExpenses] = useState<any[]>([]); // State to hold expenses
   const [expensesLoading, setExpensesLoading] = useState(false);
@@ -75,6 +76,77 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
   const [fetchedGroup, setFetchedGroup] = useState<Group | null>(null);
   const [loading, setLoading] = useState(false);
   const userEmail = group.members[0]?.email;
+
+  // Helper to refresh group details from backend
+  async function refreshGroupDetails() {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/groups/${groupId}?userId=${userId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setFetchedGroup(data);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // --- RENAME GROUP ---
+  async function handleRenameGroup(newName: string) {
+    try {
+      const res = await fetch(`/api/groups/${groupId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName, userId }),
+      });
+      if (res.ok) {
+        await refreshGroupDetails();
+        setRenameInput(newName);
+      }
+    } catch {}
+  }
+
+  // --- ADD MEMBER ---
+  async function handleAddMember(member: Member) {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/add-member`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: member.email, name: member.name }),
+      });
+      if (res.ok) {
+        await refreshGroupDetails();
+      }
+    } catch {}
+  }
+
+  // --- REMOVE MEMBER ---
+  async function handleRemoveMember(email: string) {
+    try {
+      const res = await fetch(`/api/groups/${groupId}/remove-member`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (res.ok) {
+        await refreshGroupDetails();
+      }
+    } catch {}
+  }
+
+  // --- DELETE GROUP ---
+  async function handleDeleteGroup() {
+    try {
+      const res = await fetch(`/api/groups/${groupId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        onDeleteGroup(groupIdx);
+      }
+    } catch {}
+  }
 
   // Find the current user (by email) from the group members
   const allMembers: Member[] = (fetchedGroup || group).members;
@@ -701,7 +773,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
                   className="flex-1 bg-purple-400 text-white rounded px-4 py-2 hover:bg-purple-500 transition font-semibold shadow"
                   onClick={() => {
                     if (renameInput.trim()) {
-                      onRenameGroup(groupIdx, renameInput.trim());
+                      handleRenameGroup(renameInput.trim());
                       setShowRenameModal(false);
                     }
                   }}
@@ -728,7 +800,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
                 <button
                   className="flex-1 bg-red-500 text-white rounded px-4 py-2 hover:bg-red-600 transition font-semibold shadow"
                   onClick={() => {
-                    onDeleteGroup(groupIdx);
+                    handleDeleteGroup();
                     setShowDeleteModal(false);
                   }}
                 >
@@ -775,7 +847,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
               <div className="flex gap-2 w-full">
                 <button
                   className="flex-1 bg-purple-400 text-white rounded px-4 py-2 hover:bg-purple-500 transition font-semibold shadow"
-                  onClick={() => {
+                  onClick={async () => {
                     const name = addMemberInput.name.trim();
                     const email = addMemberInput.email.trim();
                     const phone = addMemberInput.phone.trim();
@@ -787,7 +859,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
                       setAddMemberError('A member with this email already exists.');
                       return;
                     }
-                    onAddMemberToGroup(groupIdx, { name, email, phone: phone || undefined });
+                    await handleAddMember({ name, email, phone: phone || undefined });
                     setAddMemberInput({ name: '', email: '', phone: '' });
                     setAddMemberError('');
                     setShowAddMemberModal(false);
@@ -827,7 +899,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, o
                           setRemoveMemberError('A group must have at least one member.');
                           return;
                         }
-                        onRemoveMemberFromGroup(groupIdx, m.email);
+                        handleRemoveMember(m.email);
                         setRemoveMemberError('');
                         // If only one member left after removal, close modal
                         if (group.members.length - 1 <= 1) setShowRemoveMemberModal(false);
