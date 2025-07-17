@@ -54,6 +54,7 @@ model GroupPendingMember {
   group     Group    @relation(fields: [groupId], references: [id])
   groupId   String
   email     String
+  name      String?  // New: optional name for invited member
   invitedAt DateTime @default(now())
   @@unique([groupId, email])
 }
