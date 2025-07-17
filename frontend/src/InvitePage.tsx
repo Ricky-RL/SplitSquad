@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSupabaseUser } from './useSupabaseUser.js';
 import { getApiUrl } from './utils.js';
+import { useNavigate } from 'react-router-dom';
 
 const InvitePage: React.FC = () => {
   const user = useSupabaseUser();
@@ -8,6 +9,7 @@ const InvitePage: React.FC = () => {
   const [error, setError] = useState('');
   const params = new URLSearchParams(window.location.search);
   const groupId = params.get('groupId');
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!groupId) {
@@ -27,6 +29,15 @@ const InvitePage: React.FC = () => {
       })
       .catch(() => setStatus('error'));
   }, [user, groupId]);
+
+  useEffect(() => {
+    if (status === 'joined') {
+      const timeout = setTimeout(() => {
+        navigate('/');
+      }, 2000);
+      return () => clearTimeout(timeout);
+    }
+  }, [status, navigate]);
 
   if (!groupId || status === 'notfound') {
     return <div className="min-h-screen flex items-center justify-center text-xl text-red-500">Invalid or missing invite link.</div>;
