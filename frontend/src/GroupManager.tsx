@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import GroupDetails from './GroupDetails.js';
 import { getApiUrl } from './utils.js';
+import Picker from '@emoji-mart/react';
+import data from '@emoji-mart/data';
 
 interface Member {
   name: string;
@@ -38,6 +40,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [newGroupId, setNewGroupId] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [emoji, setEmoji] = useState('😀');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
 
   useEffect(() => {
@@ -252,36 +255,35 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
             </button>
             <form onSubmit={handleCreateGroup} className="flex flex-col gap-4">
               <h3 className="text-2xl font-bold mb-2 text-blue-700">Create Group</h3>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-3xl cursor-pointer" title="Pick an emoji">{emoji}</span>
-                <select
-                  value={emoji}
-                  onChange={e => setEmoji(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 bg-white text-xl"
-                  style={{ width: 48 }}
+              <div className="flex items-center gap-2 mb-2 relative">
+                <span
+                  className="text-3xl cursor-pointer border border-gray-200 rounded-lg p-1 hover:bg-gray-100"
+                  title="Pick an emoji"
+                  onClick={() => setShowEmojiPicker(v => !v)}
                 >
-                  <option value="😀">😀</option>
-                  <option value="🎉">🎉</option>
-                  <option value="🍕">🍕</option>
-                  <option value="🏀">🏀</option>
-                  <option value="💸">💸</option>
-                  <option value="👾">👾</option>
-                  <option value="🌴">🌴</option>
-                  <option value="🎮">🎮</option>
-                  <option value="🍻">🍻</option>
-                  <option value="🧑‍🤝‍🧑">🧑‍🤝‍🧑</option>
-                  <option value="🦄">🦄</option>
-                  <option value="🔥">🔥</option>
-                  <option value="⭐">⭐</option>
-                  <option value="🚀">🚀</option>
-                  <option value="🏝️">🏝️</option>
-                  <option value="🎲">🎲</option>
-                  <option value="🎵">🎵</option>
-                  <option value="🧩">🧩</option>
-                  <option value="🪙">🪙</option>
-                  <option value="🛒">🛒</option>
-                  <option value="🧃">🧃</option>
-                </select>
+                  {emoji}
+                </span>
+                {showEmojiPicker && (
+                  <div className="absolute z-50 top-10 left-0">
+                    <Picker
+                      data={data}
+                      onEmojiSelect={e => {
+                        setEmoji(e.native);
+                        setShowEmojiPicker(false);
+                      }}
+                      theme="light"
+                      perLine={8}
+                      maxFrequentRows={0}
+                      previewPosition="none"
+                      searchPosition="none"
+                      skinTonePosition="none"
+                      emojiButtonSize={32}
+                      navPosition="top"
+                      categories={["smileys-emotion", "people-body", "animals-nature", "food-drink", "activities", "travel-places", "objects", "symbols"]}
+                      rows={5}
+                      />
+                  </div>
+                )}
               </div>
               <input
                 type="text"
