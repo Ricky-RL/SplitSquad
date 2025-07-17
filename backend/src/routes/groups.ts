@@ -11,19 +11,19 @@ const HARDCODED_USER_ID = 'demo-user-id';
 router.get('/', async (req, res) => {
   try {
     const userEmail = req.query.userId as string || HARDCODED_USER_ID;
-    const user = await prisma.user.findUnique({
-      where: { email: userEmail },
+    const groups = await prisma.group.findMany({
+      where: {
+        OR: [
+          { members: { some: { email: userEmail } } },
+          { pendingMembers: { some: { email: userEmail } } },
+        ],
+      },
       include: {
-        groups: {
-          include: {
-            members: true,
-            pendingMembers: true,
-          },
-        },
+        members: true,
+        pendingMembers: true,
       },
     });
-    if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json(user.groups);
+    res.json(groups);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch groups' });
   }
