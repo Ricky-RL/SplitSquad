@@ -232,7 +232,7 @@ router.post('/:id/join', async (req, res) => {
     let user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
       // Create user if not exists (optional, or you can return error)
-      user = await prisma.user.create({ data: { email, name: name || email } });
+      user = await prisma.user.create({ data: { email, name: name || email, password: null } });
     }
     // Add as confirmed member if not already
     let group = await prisma.group.update({
