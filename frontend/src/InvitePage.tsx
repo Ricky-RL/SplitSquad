@@ -4,7 +4,7 @@ import { getApiUrl } from './utils.js';
 import { useNavigate } from 'react-router-dom';
 
 const InvitePage: React.FC = () => {
-  const { user, loading } = useSupabaseUser();
+  const user = useSupabaseUser();
   const [status, setStatus] = useState<'idle' | 'joining' | 'joined' | 'error' | 'notfound'>('idle');
   const [error, setError] = useState('');
   const params = new URLSearchParams(window.location.search);
@@ -16,7 +16,6 @@ const InvitePage: React.FC = () => {
       setStatus('notfound');
       return;
     }
-    if (loading) return;
     if (!user) return;
     setStatus('joining');
     // Call the join group endpoint to ensure user is added to the group
@@ -34,7 +33,7 @@ const InvitePage: React.FC = () => {
         else setStatus('error');
       })
       .catch(() => setStatus('error'));
-  }, [user, loading, groupId]);
+  }, [user, groupId]);
 
   useEffect(() => {
     if (status === 'joined') {
