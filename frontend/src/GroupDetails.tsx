@@ -45,14 +45,11 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   const [expenses, setExpenses] = useState<any[]>([]); // State to hold expenses
   const [expensesLoading, setExpensesLoading] = useState(false);
   const [expensesError, setExpensesError] = useState('');
-  // Find the current user in the group
-  const currentUserObj = allMembers.find(m => m.id === userId);
-
   // Add Expense form state
   const [expenseForm, setExpenseForm] = useState({
     description: '',
     amount: '',
-    payer: currentUserObj ? currentUserObj.name : (group.members[0]?.name || ''),
+    payer: group.members[0]?.name || '',
     date: new Date().toISOString().slice(0, 10),
     splitType: 'all', // 'all' or 'subset'
     splitMembers: allSplitMembers.map(m => m.name), // default all (confirmed + pending)
@@ -350,102 +347,43 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
     }
   }
 
-  // Compute balances from expenses (robust version)
+  // Compute balances from expenses
   function computeBalances() {
-    // Build a map of all members (id -> {id, name, email})
+    // Combine confirmed and pending members for balances
     const allMembers = [
       ...((fetchedGroup || group).members || []),
       ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
     ];
-    const memberMap: Record<string, { id: string; name: string; email: string }> = {};
-    allMembers.forEach(m => { memberMap[m.id!] = { id: m.id!, name: m.name, email: m.email }; });
-
-    // Initialize balances
     const balances: Record<string, number> = {};
-    Object.keys(memberMap).forEach(id => { balances[id] = 0; });
-
+    allMembers.forEach(m => { balances[m.id!] = 0; });
     for (const exp of expenses) {
       // Use splitWith (array of user IDs or emails) or all members if not set
-      const splitWith: string[] = (exp.splitWith && exp.splitWith.length > 0)
+      const splitWith: string[] = exp.splitWith && exp.splitWith.length > 0
         ? exp.splitWith
-        : Object.keys(memberMap);
-      // Remove duplicates just in case
-      const uniqueSplitWith = Array.from(new Set(splitWith));
-      const share = exp.amount / uniqueSplitWith.length;
-      // Debug: log expense details
-      // eslint-disable-next-line no-console
-      console.log('Expense:', exp.description, 'Amount:', exp.amount, 'Payer:', exp.payerId, 'SplitWith:', uniqueSplitWith);
-      for (const memberId of uniqueSplitWith) {
+        : allMembers.map(m => m.id!);
+      const share = exp.amount / splitWith.length;
+      for (const memberId of splitWith) {
         if (memberId === exp.payerId) {
-          // If payer is in split, they pay their share, get credited the rest
+          // Only credit payer if they are in the split
           balances[memberId] += exp.amount - share;
         } else {
           balances[memberId] -= share;
         }
       }
       // If payer is NOT in splitWith, credit them the full amount
-      if (!uniqueSplitWith.includes(exp.payerId)) {
-        balances[exp.payerId] = (balances[exp.payerId] || 0) + exp.amount;
+      if (!splitWith.includes(exp.payerId)) {
+        balances[exp.payerId] += exp.amount;
       }
     }
     // Map balances to display with member names (use email for pending)
-    const result = Object.keys(memberMap).map(id => ({
-      id,
-      name: memberMap[id].name || memberMap[id].email,
-      amount: Math.round((balances[id] + Number.EPSILON) * 100) / 100, // round to 2 decimals
+    const result = allMembers.map(m => ({
+      id: m.id!,
+      name: m.name || m.email,
+      amount: balances[m.id!] || 0,
     }));
-    // Debug: log final balances
-    // eslint-disable-next-line no-console
-    console.log('Final balances:', result);
     return result;
   }
   const balances = computeBalances();
-
-  // Add a function to compute pairwise debts between all members
-  function computePairwiseDebts() {
-    // Build a map of all members (id -> {id, name, email})
-    const allMembers = [
-      ...((fetchedGroup || group).members || []),
-      ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
-    ];
-    const memberMap: Record<string, { id: string; name: string; email: string }> = {};
-    allMembers.forEach(m => { memberMap[m.id!] = { id: m.id!, name: m.name, email: m.email }; });
-    const memberIds = Object.keys(memberMap);
-
-    // Initialize pairwise debts: debts[a][b] = how much a owes b
-    const debts: Record<string, Record<string, number>> = {};
-    memberIds.forEach(a => {
-      debts[a] = {};
-      memberIds.forEach(b => { debts[a][b] = 0; });
-    });
-
-    for (const exp of expenses) {
-      const splitWith: string[] = (exp.splitWith && exp.splitWith.length > 0)
-        ? exp.splitWith
-        : memberIds;
-      const uniqueSplitWith = Array.from(new Set(splitWith));
-      const share = exp.amount / uniqueSplitWith.length;
-      for (const memberId of uniqueSplitWith) {
-        if (memberId !== exp.payerId) {
-          // member owes payer their share
-          debts[memberId][exp.payerId] += share;
-        }
-      }
-    }
-    // For each pair, net the debts (a owes b minus b owes a)
-    const pairwise = [];
-    for (const a of memberIds) {
-      for (const b of memberIds) {
-        if (a !== b) {
-          const net = debts[a][b] - debts[b][a];
-          if (Math.abs(net) > 0.01) {
-            pairwise.push({ from: a, to: b, amount: Math.round((net + Number.EPSILON) * 100) / 100 });
-          }
-        }
-      }
-    }
-    return { pairwise, memberMap };
-  }
 
   const displayGroup = fetchedGroup || group;
   try {
@@ -590,44 +528,46 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
               {activeTab === 'BALANCES' && (
                 <div>
                   <div className="mb-6">
-                    {/* Centered horizontal bar graph with visible names */}
-                    <div className="flex flex-col gap-3">
+                    {/* Tricount-style horizontal bar graph */}
+                    <div className="flex flex-col gap-2">
                       {(() => {
                         const maxAbs = Math.max(...balances.map(b => Math.abs(b.amount)), 1);
                         return balances.map((b, idx) => {
-                          const percent = Math.abs(b.amount) / maxAbs * 100;
+                          const barWidth = `${Math.abs(b.amount) / maxAbs * 100}%`;
                           const isPositive = b.amount > 0;
+                          if (b.amount === 0) {
+                            // Render only empty space for alignment
+                            return (
+                              <div key={b.name} className="flex items-center w-full h-10">
+                                <div style={{ width: '50%' }} />
+                                <div style={{ width: '50%' }} />
+                              </div>
+                            );
+                          }
                           return (
-                            <div key={b.name} className="flex items-center w-full h-10 relative">
-                              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-gray-200 z-0" style={{ height: '100%' }} />
-                              {/* Negative bar (left of center) */}
-                              <div className="flex-1 flex justify-end pr-2 relative z-10 items-center">
-                                {b.amount < 0 && (
-                                  <>
-                                    <span className="mr-2 font-medium text-gray-700 whitespace-nowrap">{b.name}</span>
-                                    <div
-                                      className="flex items-center bg-red-100 rounded-l-full h-10 px-6 font-semibold text-red-700 text-base shadow-sm transition-all duration-200 whitespace-nowrap min-w-[80px] max-w-[60%]"
-                                      style={{ width: `${percent}%`, justifyContent: 'flex-end' }}
-                                    >
-                                      <span>{b.amount.toFixed(2)} $</span>
-                                    </div>
-                                  </>
-                                )}
-                              </div>
-                              {/* Positive bar (right of center) */}
-                              <div className="flex-1 flex justify-start pl-2 relative z-10 items-center">
-                                {b.amount > 0 && (
-                                  <>
-                                    <div
-                                      className="flex items-center bg-green-100 rounded-r-full h-10 px-6 font-semibold text-green-700 text-base shadow-sm transition-all duration-200 whitespace-nowrap min-w-[80px] max-w-[60%]"
-                                      style={{ width: `${percent}%`, justifyContent: 'flex-start' }}
-                                    >
-                                      <span>+{b.amount.toFixed(2)} $</span>
-                                    </div>
-                                    <span className="ml-2 font-medium text-gray-700 whitespace-nowrap">{b.name}</span>
-                                  </>
-                                )}
-                              </div>
+                            <div key={b.name} className="flex items-center w-full h-10">
+                              {/* Negative bar (left) */}
+                              {!isPositive && (
+                                <div className="flex items-center justify-end pr-2" style={{ width: barWidth }}>
+                                  <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
+                                    <span>{b.amount.toFixed(2)} $</span>
+                                    <span className="ml-2">{b.name}</span>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Empty space for negative bar */}
+                              {isPositive && <div style={{ width: '50%' }} />}
+                              {/* Positive bar (right) */}
+                              {isPositive && (
+                                <div className="flex items-center justify-start pl-2 ml-auto" style={{ width: barWidth }}>
+                                  <div className="bg-green-200 text-green-800 rounded-r-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
+                                    <span>{b.name}</span>
+                                    <span className="ml-2">+{b.amount.toFixed(2)} $</span>
+                                  </div>
+                                </div>
+                              )}
+                              {/* Empty space for positive bar */}
+                              {!isPositive && <div style={{ width: '50%' }} />}
                             </div>
                           );
                         });
