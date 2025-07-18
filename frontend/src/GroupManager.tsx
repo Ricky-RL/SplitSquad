@@ -18,6 +18,7 @@ interface Group {
   name: string;
   members: Member[];
   pendingMembers?: PendingMember[];
+  inviteToken?: string; // Added inviteToken to the Group interface
 }
 
 interface GroupManagerProps {
@@ -205,6 +206,30 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                   </li>
                 ))}
               </ul>
+              {/* Invite Link Display */}
+              {g.inviteToken && (
+                <div className="mt-4 w-full flex flex-col items-center">
+                  <label className="text-xs text-gray-500 mb-1">Invite Link:</label>
+                  <div className="flex w-full gap-2 items-center">
+                    <input
+                      type="text"
+                      value={`${window.location.origin}/invite?groupId=${g.id}&token=${g.inviteToken}`}
+                      readOnly
+                      className="flex-1 border border-gray-300 rounded-lg px-2 py-1 text-xs text-gray-900 bg-gray-50"
+                      onFocus={e => e.target.select()}
+                    />
+                    <button
+                      className="bg-purple-400 text-white rounded px-2 py-1 text-xs hover:bg-purple-500 transition font-semibold shadow"
+                      onClick={e => {
+                        e.stopPropagation();
+                        navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${g.id}&token=${g.inviteToken}`);
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))
         )}

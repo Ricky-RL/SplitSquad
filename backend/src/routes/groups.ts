@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
+import { v4 as uuidv4 } from 'uuid';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -69,10 +70,13 @@ router.post('/', async (req, res) => {
     const existingUserEmails = users.map(u => u.email);
     // Emails that do not exist as users
     const pendingEmails = uniqueMemberEmails.filter(email => !existingUserEmails.includes(email));
+    // Generate invite token
+    const inviteToken = uuidv4();
     // Create the group
     const group = await prisma.group.create({
       data: {
         name,
+        inviteToken,
         members: {
           connect: existingUserIds.map(id => ({ id })),
         },
@@ -225,9 +229,15 @@ router.post('/:id/remove-member', async (req, res) => {
 // Join group via invite link
 router.post('/:id/join', async (req, res) => {
   const groupId = req.params.id;
-  const { email, name } = req.body;
+  const { email, name, token } = req.body;
   if (!email) return res.status(400).json({ error: 'Email required' });
+  if (!token) return res.status(400).json({ error: 'Invite token required' });
   try {
+    // Validate invite token
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
+    if (!group || group.inviteToken !== token) {
+      return res.status(403).json({ error: 'Invalid invite token' });
+    }
     // Check if user exists
     let user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
@@ -235,7 +245,7 @@ router.post('/:id/join', async (req, res) => {
       user = await prisma.user.create({ data: { email, name: name || email, password: null } });
     }
     // Add as confirmed member if not already
-    let group = await prisma.group.update({
+    let updatedGroup = await prisma.group.update({
       where: { id: groupId },
       data: {
         members: { connect: { id: user.id } },
@@ -244,8 +254,8 @@ router.post('/:id/join', async (req, res) => {
       include: { members: true, pendingMembers: true },
     });
     // Update all 'split evenly' expenses to include all current members and pending members
-    const allMemberIds = group.members.map(m => m.id);
-    const allPendingEmails = group.pendingMembers.map(pm => pm.email);
+    const allMemberIds = updatedGroup.members.map(m => m.id);
+    const allPendingEmails = updatedGroup.pendingMembers.map(pm => pm.email);
     const newSplitWith = [...allMemberIds, ...allPendingEmails];
     const expenses = await prisma.expense.findMany({
       where: { groupId, splitType: 'all' },
@@ -256,7 +266,7 @@ router.post('/:id/join', async (req, res) => {
         data: { splitWith: newSplitWith },
       });
     }
-    res.json(group);
+    res.json(updatedGroup);
   } catch (err) {
     res.status(500).json({ error: 'Failed to join group' });
   }

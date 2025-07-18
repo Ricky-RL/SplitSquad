@@ -1284,7 +1284,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
               <div className="text-lg font-bold text-purple-500 mb-4">Invite Link</div>
               <input
                 type="text"
-                value={`${window.location.origin}/invite?groupId=${groupId}`}
+                value={`${window.location.origin}/invite?groupId=${groupId}&token=${(displayGroup.inviteToken || group.inviteToken)}`}
                 readOnly
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 mb-4 text-gray-900 bg-gray-50"
                 onFocus={e => e.target.select()}
@@ -1292,7 +1292,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
               <button
                 className="flex-1 bg-purple-400 text-white rounded px-4 py-2 hover:bg-purple-500 transition font-semibold shadow mb-2"
                 onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${groupId}`);
+                  navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${groupId}&token=${(displayGroup.inviteToken || group.inviteToken)}`);
                 }}
               >
                 Copy Link
