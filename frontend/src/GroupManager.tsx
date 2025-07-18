@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import GroupDetails from './GroupDetails.js';
 import { getApiUrl } from './utils.js';
 import data from '@emoji-mart/data';
-import EmojiPicker from 'emoji-picker-react';
 
 interface Member {
   name: string;
@@ -40,7 +39,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [newGroupId, setNewGroupId] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [emoji, setEmoji] = useState('😀');
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [creatingGroup, setCreatingGroup] = useState(false);
 
   useEffect(() => {
@@ -256,28 +254,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
             <form onSubmit={handleCreateGroup} className="flex flex-col gap-4">
               <h3 className="text-2xl font-bold mb-2 text-blue-700">Create Group</h3>
               <div className="flex items-center gap-2 mb-2 relative">
-                <span
-                  className="text-3xl cursor-pointer border border-gray-200 rounded-lg p-1 hover:bg-gray-100"
-                  title="Pick an emoji"
-                  onClick={() => setShowEmojiPicker(v => !v)}
-                >
+                <span className="text-3xl border border-gray-200 rounded-lg p-1 bg-gray-50">
                   {emoji}
                 </span>
-                {showEmojiPicker && (
-                  <div className="absolute z-50 top-10 left-0 bg-white rounded shadow-lg">
-                    <EmojiPicker
-                      onEmojiClick={(e) => {
-                        setEmoji(e.emoji);
-                        setShowEmojiPicker(false);
-                      }}
-                      height={350}
-                      width={300}
-                      searchDisabled={false}
-                      skinTonesDisabled={false}
-                      previewConfig={{ showPreview: false }}
-                    />
-                  </div>
-                )}
               </div>
               <input
                 type="text"
