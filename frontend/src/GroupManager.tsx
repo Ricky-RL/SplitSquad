@@ -38,7 +38,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [newGroupId, setNewGroupId] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
   const [emoji, setEmoji] = useState('😀');
-  const [creatingGroup, setCreatingGroup] = useState(false);
 
   useEffect(() => {
     async function fetchGroups() {
@@ -102,7 +101,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       setError('Please add at least one member.');
       return;
     }
-    setCreatingGroup(true);
     try {
       const res = await fetch(getApiUrl('/api/groups'), {
         method: 'POST',
@@ -117,7 +115,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         setError(data.error || 'Failed to create group.');
-        setCreatingGroup(false);
         return;
       }
       const group = await res.json();
@@ -125,8 +122,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       setCreatedGroupId(group.id);
     } catch (err) {
       setError('Failed to create group.');
-    } finally {
-      setCreatingGroup(false);
     }
   };
 
@@ -378,9 +373,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
               <button
                 type="submit"
                 className="bg-blue-600 text-white rounded px-4 py-2 mt-2 hover:bg-blue-700 transition font-semibold shadow"
-                disabled={creatingGroup}
               >
-                {creatingGroup ? 'Saving...' : 'Save Group'}
+                Save Group
               </button>
             </form>
           </div>
