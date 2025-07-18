@@ -80,7 +80,6 @@ const GroupDetails = ({ group, groupId, groupIdx, userId, onClose, onRenameGroup
     async function refreshGroupDetails() {
         setLoading(true);
         try {
-            // userId should be the UUID, not email
             const res = await fetch(`/api/groups/${groupId}?userId=${userId}`);
             if (res.ok) {
                 const data = await res.json();
