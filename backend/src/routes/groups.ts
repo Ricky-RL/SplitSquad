@@ -56,7 +56,7 @@ router.get('/:id', async (req, res) => {
 router.post('/', async (req, res) => {
   try {
     const userId = req.body.userId || HARDCODED_USER_ID;
-    const { name, memberIds, emoji } = req.body;
+    const { name, memberIds } = req.body;
     if (!name) return res.status(400).json({ error: 'Name required' });
     // Always include creator as a member
     const uniqueMemberEmails = Array.from(new Set([userId, ...(memberIds || [])]));
@@ -73,7 +73,6 @@ router.post('/', async (req, res) => {
     const group = await prisma.group.create({
       data: {
         name,
-        emoji: emoji || null,
         members: {
           connect: existingUserIds.map(id => ({ id })),
         },

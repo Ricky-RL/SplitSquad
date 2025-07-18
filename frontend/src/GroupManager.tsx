@@ -18,7 +18,6 @@ interface Group {
   name: string;
   members: Member[];
   pendingMembers?: PendingMember[];
-  emoji?: string;
 }
 
 interface GroupManagerProps {
@@ -37,7 +36,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [newGroupId, setNewGroupId] = useState<string | null>(null);
   const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
-  const [emoji, setEmoji] = useState('😀');
 
   useEffect(() => {
     async function fetchGroups() {
@@ -105,7 +103,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
           userId: currentUser.email, // use email as userId for now
           name: groupName.trim(),
           memberIds: allMembers.map(m => m.email),
-          emoji,
         }),
       });
       if (!res.ok) {
@@ -181,10 +178,7 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                 className="bg-white rounded-xl shadow p-6 flex flex-col gap-2 border border-gray-100 cursor-pointer hover:shadow-lg transition items-center text-center"
               onClick={() => setSelectedGroupIdx(idx)}
             >
-              <div className="flex items-center justify-center mb-2">
-                <span className="text-2xl mr-2">{g.emoji || '😀'}</span>
-                <div className="text-xl font-bold text-blue-700">{g.name}</div>
-              </div>
+              <div className="text-xl font-bold text-blue-700 mb-2">{g.name}</div>
               <div className="text-gray-700 font-medium mb-1">Members:</div>
                 <ul className="flex flex-col gap-1 items-center w-full">
                 {g.members.map((m, i) => (
@@ -243,37 +237,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
             </button>
             <form onSubmit={handleCreateGroup} className="flex flex-col gap-4">
               <h3 className="text-2xl font-bold mb-2 text-blue-700">Create Group</h3>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-3xl cursor-pointer" title="Pick an emoji">{emoji}</span>
-                <select
-                  value={emoji}
-                  onChange={e => setEmoji(e.target.value)}
-                  className="border border-gray-300 rounded px-2 py-1 bg-white text-xl"
-                  style={{ width: 48 }}
-                >
-                  <option value="😀">😀</option>
-                  <option value="🎉">🎉</option>
-                  <option value="🍕">🍕</option>
-                  <option value="🏀">🏀</option>
-                  <option value="💸">💸</option>
-                  <option value="👾">👾</option>
-                  <option value="🌴">🌴</option>
-                  <option value="🎮">🎮</option>
-                  <option value="🍻">🍻</option>
-                  <option value="🧑‍🤝‍🧑">🧑‍🤝‍🧑</option>
-                  <option value="🦄">🦄</option>
-                  <option value="🔥">🔥</option>
-                  <option value="⭐">⭐</option>
-                  <option value="🚀">🚀</option>
-                  <option value="🏝️">🏝️</option>
-                  <option value="🎲">🎲</option>
-                  <option value="🎵">🎵</option>
-                  <option value="🧩">🧩</option>
-                  <option value="🪙">🪙</option>
-                  <option value="🛒">🛒</option>
-                  <option value="🧃">🧃</option>
-                </select>
-              </div>
               <input
                 type="text"
                 value={groupName}
