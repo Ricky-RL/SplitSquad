@@ -49,13 +49,13 @@ model Expense {
   imageUrl    String?
   createdAt   DateTime @default(now())
 }
-
 model GroupPendingMember {
   id        String   @id @default(uuid())
   group     Group    @relation(fields: [groupId], references: [id])
   groupId   String
   email     String
-  name      String?  // New: optional name for invited member
+  name      String?  // optional name for invited member
   invitedAt DateTime @default(now())
+  pendingUserId String? @unique
   @@unique([groupId, email])
 }
