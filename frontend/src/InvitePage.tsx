@@ -31,9 +31,9 @@ const InvitePage: React.FC = () => {
       .then(res => {
         if (res.ok) {
           setStatus('joined');
-          // Optionally redirect to group page after a short delay
+          // Force a reload to ensure all group data is fresh
           setTimeout(() => {
-            window.location.href = `/group/${groupId}`;
+            window.location.href = `/`;
           }, 1500);
         } else {
           setStatus('error');
