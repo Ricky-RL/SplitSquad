@@ -181,20 +181,6 @@ router.post('/:id/add-member', async (req, res) => {
         include: { members: true, pendingMembers: true },
       });
     }
-    // --- NEW LOGIC: Update all 'split evenly' expenses to include all current members and pending members ---
-    const allMemberIds = group.members.map(m => m.id);
-    const allPendingEmails = group.pendingMembers.map(pm => pm.email);
-    const newSplitWith = [...allMemberIds, ...allPendingEmails];
-    const expenses = await prisma.expense.findMany({
-      where: { groupId, splitType: 'all' },
-    });
-    for (const expense of expenses) {
-      await prisma.expense.update({
-        where: { id: expense.id },
-        data: { splitWith: newSplitWith },
-      });
-    }
-    // --- END NEW LOGIC ---
     res.json(group);
   } catch (err) {
     res.status(500).json({ error: 'Failed to add member' });
@@ -227,20 +213,6 @@ router.post('/:id/remove-member', async (req, res) => {
       },
       include: { members: true, pendingMembers: true },
     });
-    // --- NEW LOGIC: Update all 'split evenly' expenses to include all current members and pending members (excluding removed) ---
-    const allMemberIds = group.members.map(m => m.id);
-    const allPendingEmails = group.pendingMembers.map(pm => pm.email);
-    const newSplitWith = [...allMemberIds, ...allPendingEmails];
-    const expenses = await prisma.expense.findMany({
-      where: { groupId, splitType: 'all' },
-    });
-    for (const expense of expenses) {
-      await prisma.expense.update({
-        where: { id: expense.id },
-        data: { splitWith: newSplitWith },
-      });
-    }
-    // --- END NEW LOGIC ---
     res.json(group);
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove member' });
