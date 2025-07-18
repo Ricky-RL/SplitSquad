@@ -10,17 +10,9 @@ const HARDCODED_USER_ID = 'demo-user-id';
 // List all groups for the user
 router.get('/', async (req, res) => {
   try {
-    let userId = req.query.userId as string;
-    let userEmail = req.query.userEmail as string;
+    const userId = req.query.userId as string;
+    const userEmail = req.query.userEmail as string;
     console.log('Fetching groups for:', { userId, userEmail });
-    if (!userId && userEmail) {
-      // Try to look up userId by email
-      const user = await prisma.user.findUnique({ where: { email: userEmail } });
-      if (user) {
-        userId = user.id;
-        console.log('Looked up userId by email:', userId);
-      }
-    }
     if (!userId && !userEmail) {
       return res.status(400).json({ error: 'Missing userId and userEmail' });
     }

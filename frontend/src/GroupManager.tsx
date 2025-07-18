@@ -55,10 +55,8 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
         // Optionally handle error
       }
     }
-    if (currentUser.id && currentUser.email) {
-      fetchGroups();
-    }
-  }, [currentUser.id, currentUser.email]);
+    fetchGroups();
+  }, [currentUser.email]);
 
   const openModal = () => {
     setShowModal(true);
