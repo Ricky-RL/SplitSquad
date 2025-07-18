@@ -61,14 +61,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
     setMemberInput({ name: '', email: '', phone: '' });
     setError('');
     setMemberError('');
-    setCreatedGroupId(null);
-    setEmoji('😀');
   };
 
   const closeModal = () => {
     setShowModal(false);
-    setCreatedGroupId(null);
-    setEmoji('😀');
   };
 
   const handleAddMember = (e: React.FormEvent) => {
