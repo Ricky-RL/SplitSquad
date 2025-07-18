@@ -23,7 +23,8 @@ router.get('/', async (req, res) => {
     });
     res.json(groups);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch groups' });
+    console.error('GET /api/groups error:', err);
+    res.status(500).json({ error: 'Failed to fetch groups', details: err instanceof Error ? err.message : err });
   }
 });
 
@@ -46,7 +47,8 @@ router.get('/:id', async (req, res) => {
     if (!group) return res.status(404).json({ error: 'Group not found or access denied' });
     res.json(group);
   } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch group details' });
+    console.error('GET /api/groups/:id error:', err);
+    res.status(500).json({ error: 'Failed to fetch group details', details: err instanceof Error ? err.message : err });
   }
 });
 
