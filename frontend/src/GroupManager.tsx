@@ -35,7 +35,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
   const [selectedGroupIdx, setSelectedGroupIdx] = useState<number | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [newGroupId, setNewGroupId] = useState<string | null>(null);
-  const [createdGroupId, setCreatedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchGroups() {
@@ -89,6 +88,10 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       setError('Group name cannot be empty.');
       return;
     }
+    if (groups.some(g => g.name === groupName.trim())) {
+      setError('Group name already exists.');
+      return;
+    }
     // Always include the current user as a member
     const allMembers = [currentUser, ...members.filter(m => m.email !== currentUser.email)];
     if (allMembers.length === 0) {
@@ -112,7 +115,9 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
       }
       const group = await res.json();
       setGroups([...groups, group]);
-      setCreatedGroupId(group.id);
+      setShowModal(false);
+      setNewGroupId(group.id);
+      setShowInviteModal(true);
     } catch (err) {
       setError('Failed to create group.');
     }
@@ -305,30 +310,6 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                   ))
                 )}
               </ul>
-              {/* Invite Link shown after group is created */}
-              {createdGroupId && (
-                <div className="flex flex-col items-center mb-2">
-                  <label className="block text-purple-500 font-semibold mb-1">Invite Link</label>
-                  <div className="flex w-full gap-2">
-                    <input
-                      type="text"
-                      value={`${window.location.origin}/invite?groupId=${createdGroupId}`}
-                      readOnly
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-gray-900 bg-gray-50"
-                      onFocus={e => e.target.select()}
-                    />
-                    <button
-                      type="button"
-                      className="bg-purple-400 text-white rounded px-3 py-2 hover:bg-purple-500 transition font-semibold shadow"
-                      onClick={() => {
-                        navigator.clipboard.writeText(`${window.location.origin}/invite?groupId=${createdGroupId}`);
-                      }}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
               <button
                 type="submit"
                 className="bg-blue-600 text-white rounded px-4 py-2 mt-2 hover:bg-blue-700 transition font-semibold shadow"
