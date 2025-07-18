@@ -52,7 +52,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   const [expenseForm, setExpenseForm] = useState({
     description: '',
     amount: '',
-    payer: currentUserObj ? currentUserObj.name : (group.members[0]?.name || ''),
+    payer: group.members[0]?.name || '',
     date: new Date().toISOString().slice(0, 10),
     splitType: 'all', // 'all' or 'subset'
     splitMembers: allSplitMembers.map(m => m.name), // default all (confirmed + pending)
@@ -401,140 +401,6 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
     return result;
   }
   const balances = computeBalances();
-
-  // Add a function to compute pairwise debts between all members
-  function computePairwiseDebts() {
-    // Build a map of all members (id -> {id, name, email})
-    const allMembers = [
-      ...((fetchedGroup || group).members || []),
-      ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
-    ];
-    const memberMap: Record<string, { id: string; name: string; email: string }> = {};
-    allMembers.forEach(m => { memberMap[m.id!] = { id: m.id!, name: m.name, email: m.email }; });
-    const memberIds = Object.keys(memberMap);
-
-    // Initialize pairwise debts: debts[a][b] = how much a owes b
-    const debts: Record<string, Record<string, number>> = {};
-    memberIds.forEach(a => {
-      debts[a] = {};
-      memberIds.forEach(b => { debts[a][b] = 0; });
-    });
-
-    for (const exp of expenses) {
-      const splitWith: string[] = (exp.splitWith && exp.splitWith.length > 0)
-        ? exp.splitWith
-        : memberIds;
-      const uniqueSplitWith = Array.from(new Set(splitWith));
-      const share = exp.amount / uniqueSplitWith.length;
-      for (const memberId of uniqueSplitWith) {
-        if (memberId !== exp.payerId) {
-          // member owes payer their share
-          debts[memberId][exp.payerId] += share;
-        }
-      }
-    }
-    // For each pair, net the debts (a owes b minus b owes a)
-    const pairwise = [];
-    for (const a of memberIds) {
-      for (const b of memberIds) {
-        if (a !== b) {
-          const net = debts[a][b] - debts[b][a];
-          if (Math.abs(net) > 0.01) {
-            pairwise.push({ from: a, to: b, amount: Math.round((net + Number.EPSILON) * 100) / 100 });
-          }
-        }
-      }
-    }
-    return { pairwise, memberMap };
-  }
-
-  // Compute pairwise debts and the filtered/sorted debts used in the BALANCES tab
-  function computePairwiseDebts() {
-    const allMembers = [
-      ...((fetchedGroup || group).members || []),
-      ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
-    ];
-    const memberMap = {};
-    allMembers.forEach(m => { memberMap[m.id] = { id: m.id, name: m.name, email: m.email }; });
-    const memberIds = Object.keys(memberMap);
-    const pairSums = new Map();
-    for (const exp of expenses) {
-      const splitWith = (exp.splitWith && exp.splitWith.length > 0)
-        ? exp.splitWith
-        : memberIds;
-      const uniqueSplitWith = Array.from(new Set(splitWith));
-      const share = exp.amount / uniqueSplitWith.length;
-      for (const memberId of uniqueSplitWith) {
-        if (memberId !== exp.payerId) {
-          const key = memberId + '->' + exp.payerId;
-          pairSums.set(key, (pairSums.get(key) || 0) + share);
-        }
-      }
-    }
-    const pairwise = [];
-    for (const [key, amount] of pairSums.entries()) {
-      if (amount > 0.01) {
-        const [from, to] = key.split('->');
-        pairwise.push({ from, to, amount: Math.round((amount + Number.EPSILON) * 100) / 100 });
-      }
-    }
-    // The filtered/sorted debts used in the BALANCES tab
-    const filteredSorted = pairwise
-      .filter(p => p.amount > 0)
-      .sort((a, b) => memberMap[a.from].name.localeCompare(memberMap[b.from].name));
-    return { pairwise, memberMap, filteredSorted };
-  }
-  const { pairwise, memberMap, filteredSorted } = computePairwiseDebts();
-
-  // Extracted rendering function for 'Who owes to whom?' table
-  function renderWhoOwesToWhomTable({ filteredSorted, memberMap, userId, onlyMine = false }) {
-    // Only keep positive entries and sort by the name of the person who owes money
-    const filtered = filteredSorted;
-    if (filtered.length === 0) {
-      return <div className="text-gray-400">Everyone is settled up!</div>;
-    }
-    // Group by debtor
-    const grouped = {};
-    filtered.forEach(p => {
-      if (!grouped[p.from]) grouped[p.from] = [];
-      grouped[p.from].push(p);
-    });
-    let relevantDebtors = Object.keys(grouped);
-    if (onlyMine) {
-      relevantDebtors = relevantDebtors.filter(
-        debtor => debtor === userId || grouped[debtor].some(p => p.to === userId)
-      );
-    }
-    if (onlyMine && relevantDebtors.length === 0) {
-      return <div className="text-gray-400">You do not owe anyone, and nobody owes you!</div>;
-    }
-    return (
-      <div className="flex flex-col gap-4">
-        {relevantDebtors.map((debtor, idx, arr) => (
-          <div key={debtor}>
-            <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
-              <div className="font-semibold text-purple-500 mb-2">{debtor === userId ? 'You' : memberMap[debtor].name} owes:</div>
-              <ul className="space-y-1">
-                {grouped[debtor]
-                  .filter(p => !onlyMine || p.from === userId || p.to === userId)
-                  .map((p, i) => (
-                    <li key={i} className="flex items-center justify-between">
-                      <span className="font-medium text-gray-700">{p.from === userId ? 'You' : memberMap[p.from].name}</span>
-                      <span className="mx-2 text-gray-500">owes</span>
-                      <span className="font-medium text-purple-400">{p.to === userId ? 'You' : memberMap[p.to].name}</span>
-                      <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-            {idx < arr.length - 1 && (
-              <hr className="my-4 border-t-2 border-purple-100" />
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
 
   const displayGroup = fetchedGroup || group;
   try {
