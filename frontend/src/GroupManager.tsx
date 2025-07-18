@@ -377,23 +377,13 @@ const GroupManager: React.FC<GroupManagerProps> = ({ currentUser }) => {
                   </div>
                 </div>
               )}
-              {createdGroupId ? (
-                <button
-                  type="button"
-                  className="bg-gray-400 text-white rounded px-4 py-2 mt-2 hover:bg-gray-500 transition font-semibold shadow"
-                  onClick={closeModal}
-                >
-                  Close
-                </button>
-              ) : (
-                <button
-                  type="submit"
-                  className="bg-blue-600 text-white rounded px-4 py-2 mt-2 hover:bg-blue-700 transition font-semibold shadow"
-                  disabled={creatingGroup}
-                >
-                  {creatingGroup ? 'Saving...' : 'Save Group'}
-                </button>
-              )}
+              <button
+                type="submit"
+                className="bg-blue-600 text-white rounded px-4 py-2 mt-2 hover:bg-blue-700 transition font-semibold shadow"
+                disabled={creatingGroup}
+              >
+                {creatingGroup ? 'Saving...' : 'Save Group'}
+              </button>
             </form>
           </div>
         </div>
