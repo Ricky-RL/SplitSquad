@@ -19,8 +19,8 @@ const InvitePage: React.FC = () => {
     if (loading) return;
     if (!user) return;
     setStatus('joining');
-    // Call the join group endpoint to ensure user is added to the group
-    fetch(getApiUrl(`/api/groups/${groupId}/join`), {
+    // Upsert user to ensure pending invites are converted
+    fetch(getApiUrl('/api/users'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
