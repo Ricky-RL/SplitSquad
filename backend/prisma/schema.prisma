@@ -32,6 +32,7 @@ model Group {
   expenses  Expense[]
   createdAt DateTime  @default(now())
   pendingMembers GroupPendingMember[]
+  inviteToken String? @unique
 }
 
 model Expense {

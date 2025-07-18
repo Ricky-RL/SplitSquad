@@ -18,7 +18,7 @@ interface Group {
   name: string;
   members: Member[];
   pendingMembers?: PendingMember[];
-  inviteToken?: string; // Added inviteToken to the Group interface
+  inviteToken?: string;
 }
 
 interface GroupManagerProps {
