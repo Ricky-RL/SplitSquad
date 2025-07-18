@@ -11,13 +11,10 @@ const HARDCODED_USER_ID = 'demo-user-id';
 // List all groups for the user
 router.get('/', async (req, res) => {
   try {
-    const userEmail = req.query.userId as string || HARDCODED_USER_ID;
+    const userId = req.query.userId as string || HARDCODED_USER_ID;
     const groups = await prisma.group.findMany({
       where: {
-        OR: [
-          { members: { some: { email: userEmail } } },
-          { pendingMembers: { some: { email: userEmail } } },
-        ],
+        members: { some: { id: userId } },
       },
       include: {
         members: true,
