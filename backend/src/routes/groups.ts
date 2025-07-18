@@ -120,11 +120,6 @@ router.delete('/:id', async (req, res) => {
       where: { id: groupId, members: { some: { id: userId } } },
     });
     if (!group) return res.status(404).json({ error: 'Group not found or access denied' });
-    // Delete related expenses
-    await prisma.expense.deleteMany({ where: { groupId } });
-    // Delete related pending members
-    await prisma.groupPendingMember.deleteMany({ where: { groupId } });
-    // Now delete the group
     await prisma.group.delete({ where: { id: groupId } });
     res.json({ success: true });
   } catch (err) {
