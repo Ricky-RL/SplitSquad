@@ -113,6 +113,7 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   async function refreshGroupDetails() {
     setLoading(true);
     try {
+      // userId should be the UUID, not email
       const res = await fetch(getApiUrl(`/api/groups/${groupId}?userId=${userId}`));
       if (res.ok) {
         const data = await res.json();
@@ -385,6 +386,94 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
   }
   const balances = computeBalances();
 
+  // Compute pairwise debts and the filtered/sorted debts used in the BALANCES tab
+  function computePairwiseDebts() {
+    const allMembers = [
+      ...((fetchedGroup || group).members || []),
+      ...(((fetchedGroup || group).pendingMembers || []).map(pm => ({ id: pm.email, name: pm.name || pm.email, email: pm.email })))
+    ];
+    const memberMap = {};
+    allMembers.forEach(m => { memberMap[m.id] = { id: m.id, name: m.name, email: m.email }; });
+    const memberIds = Object.keys(memberMap);
+    const pairSums = new Map();
+    for (const exp of expenses) {
+      const splitWith = (exp.splitWith && exp.splitWith.length > 0)
+        ? exp.splitWith
+        : memberIds;
+      const uniqueSplitWith = Array.from(new Set(splitWith));
+      const share = exp.amount / uniqueSplitWith.length;
+      for (const memberId of uniqueSplitWith) {
+        if (memberId !== exp.payerId) {
+          const key = memberId + '->' + exp.payerId;
+          pairSums.set(key, (pairSums.get(key) || 0) + share);
+        }
+      }
+    }
+    const pairwise = [];
+    for (const [key, amount] of pairSums.entries()) {
+      if (amount > 0.01) {
+        const [from, to] = key.split('->');
+        pairwise.push({ from, to, amount: Math.round((amount + Number.EPSILON) * 100) / 100 });
+      }
+    }
+    // The filtered/sorted debts used in the BALANCES tab
+    const filteredSorted = pairwise
+      .filter(p => p.amount > 0)
+      .sort((a, b) => memberMap[a.from].name.localeCompare(memberMap[b.from].name));
+    return { pairwise, memberMap, filteredSorted };
+  }
+  const { pairwise, memberMap, filteredSorted } = computePairwiseDebts();
+
+  // Extracted rendering function for 'Who owes to whom?' table
+  function renderWhoOwesToWhomTable({ filteredSorted, memberMap, userId, onlyMine = false }) {
+    // Only keep positive entries and sort by the name of the person who owes money
+    const filtered = filteredSorted;
+    if (filtered.length === 0) {
+      return <div className="text-gray-400">Everyone is settled up!</div>;
+    }
+    // Group by debtor
+    const grouped = {};
+    filtered.forEach(p => {
+      if (!grouped[p.from]) grouped[p.from] = [];
+      grouped[p.from].push(p);
+    });
+    let relevantDebtors = Object.keys(grouped);
+    if (onlyMine) {
+      relevantDebtors = relevantDebtors.filter(
+        debtor => debtor === userId || grouped[debtor].some(p => p.to === userId)
+      );
+    }
+    if (onlyMine && relevantDebtors.length === 0) {
+      return <div className="text-gray-400">You do not owe anyone, and nobody owes you!</div>;
+    }
+    return (
+      <div className="flex flex-col gap-4">
+        {relevantDebtors.map((debtor, idx, arr) => (
+          <div key={debtor}>
+            <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
+              <div className="font-semibold text-purple-500 mb-2">{debtor === userId ? 'You' : memberMap[debtor].name} owes:</div>
+              <ul className="space-y-1">
+                {grouped[debtor]
+                  .filter(p => !onlyMine || p.from === userId || p.to === userId)
+                  .map((p, i) => (
+                    <li key={i} className="flex items-center justify-between">
+                      <span className="font-medium text-gray-700">{p.from === userId ? 'You' : memberMap[p.from].name}</span>
+                      <span className="mx-2 text-gray-500">owes</span>
+                      <span className="font-medium text-purple-400">{p.to === userId ? 'You' : memberMap[p.to].name}</span>
+                      <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+            {idx < arr.length - 1 && (
+              <hr className="my-4 border-t-2 border-purple-100" />
+            )}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   const displayGroup = fetchedGroup || group;
   try {
     // Defensive: If displayGroup or displayGroup.members is missing or not an array, show a message
@@ -576,140 +665,54 @@ const GroupDetails: React.FC<GroupDetailsProps> = ({ group, groupId, groupIdx, u
                   </div>
                   <div className="mt-4">
                     <div className="font-semibold text-gray-700 mb-2">Who owes to whom?</div>
-                    {(() => {
-                      const { pairwise, memberMap } = computePairwiseDebts();
-                      // Only keep positive entries and sort by the name of the person who owes money
-                      const filtered = pairwise
-                        .filter(p => p.amount > 0)
-                        .sort((a, b) => memberMap[a.from].name.localeCompare(memberMap[b.from].name));
-                      if (filtered.length === 0) {
-                        return <div className="text-gray-400">Everyone is settled up!</div>;
-                      }
-                      // Group by debtor
-                      const grouped: Record<string, typeof filtered> = {};
-                      filtered.forEach(p => {
-                        if (!grouped[p.from]) grouped[p.from] = [];
-                        grouped[p.from].push(p);
-                      });
-                      return (
-                        <div className="flex flex-col gap-4">
-                          {Object.keys(grouped).map((debtor, idx, arr) => (
-                            <div key={debtor}>
-                              <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
-                                <div className="font-semibold text-purple-500 mb-2">{memberMap[debtor].name} owes:</div>
-                                <ul className="space-y-1">
-                                  {grouped[debtor].map((p, i) => (
-                                    <li key={i} className="flex items-center justify-between">
-                                      <span className="font-medium text-gray-700">{memberMap[p.from].name}</span>
-                                      <span className="mx-2 text-gray-500">owes</span>
-                                      <span className="font-medium text-purple-400">{memberMap[p.to].name}</span>
-                                      <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-                              {idx < arr.length - 1 && (
-                                <hr className="my-4 border-t-2 border-purple-100" />
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })()}
+                    {renderWhoOwesToWhomTable({ filteredSorted, memberMap, userId, onlyMine: false })}
                   </div>
                 </div>
               )}
               {activeTab === 'MY_BALANCES' && (
                 <div>
                   <div className="mb-6">
-                    {/* Bar graph of what current user owes to each person */}
                     {(() => {
-                      // Calculate minimal payments
-                      const creditors = balances.filter(b => b.amount > 0).map(b => ({ ...b }));
-                      const debtors = balances.filter(b => b.amount < 0).map(b => ({ ...b }));
-                      const payments: { from: string; to: string; amount: number }[] = [];
-                      let i = 0, j = 0;
-                      while (i < debtors.length && j < creditors.length) {
-                        const debtor = debtors[i];
-                        const creditor = creditors[j];
-                        const payAmount = Math.min(-debtor.amount, creditor.amount);
-                        if (payAmount > 0.01) {
-                          payments.push({ from: debtor.id, to: creditor.id, amount: payAmount });
-                        }
-                        debtor.amount += payAmount;
-                        creditor.amount -= payAmount;
-                        if (Math.abs(debtor.amount) < 0.01) i++;
-                        if (Math.abs(creditor.amount) < 0.01) j++;
+                      const whoIowe = filteredSorted.filter(p => p.from === userId);
+                      const whoOwesMe = filteredSorted.filter(p => p.to === userId);
+                      if (whoIowe.length === 0 && whoOwesMe.length === 0) {
+                        return <div className="text-gray-400">You do not owe anyone, and nobody owes you!</div>;
                       }
-                      // Only show what current user owes
-                      const myPayments = payments.filter(p => p.from === currentUserId);
-                      if (myPayments.length === 0) {
-                        return <div className="text-gray-400">You do not owe anyone!</div>;
-                      }
-                      const maxOwe = Math.max(...myPayments.map(p => p.amount), 1);
                       return (
-                        <div className="flex flex-col gap-2">
-                          {myPayments.map((p, idx) => {
-                            const toMember = allMembers.find(m => m.id === p.to);
-                            return (
-                              <div key={idx} className="flex items-center w-full h-10">
-                                <div className="flex items-center justify-end pr-2" style={{ width: `${p.amount / maxOwe * 100}%` }}>
-                                  <div className="bg-red-200 text-red-800 rounded-l-lg h-8 flex items-center px-3 min-w-[80px] max-w-full font-semibold text-base justify-between w-full">
-                                    <span>{p.amount.toFixed(2)} $</span>
-                                    <span className="ml-2">{toMember ? (toMember.id === currentUserId ? 'You' : toMember.name) : p.to}</span>
-                                  </div>
-                                </div>
-                                <div style={{ width: '50%' }} />
-                              </div>
-                            );
-                          })}
+                        <div className="flex flex-col gap-6">
+                          {whoIowe.length > 0 && (
+                            <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
+                              <div className="font-semibold text-purple-500 mb-2">Who do I owe?</div>
+                              <ul className="space-y-1">
+                                {whoIowe.map((p, i) => (
+                                  <li key={i} className="flex items-center justify-between">
+                                    <span className="font-medium text-gray-700">You</span>
+                                    <span className="mx-2 text-gray-500">owe</span>
+                                    <span className="font-medium text-purple-400">{memberMap[p.to].name}</span>
+                                    <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {whoOwesMe.length > 0 && (
+                            <div className="border border-purple-200 rounded-lg p-3 bg-white shadow-sm">
+                              <div className="font-semibold text-purple-500 mb-2">Who owes me?</div>
+                              <ul className="space-y-1">
+                                {whoOwesMe.map((p, i) => (
+                                  <li key={i} className="flex items-center justify-between">
+                                    <span className="font-medium text-gray-700">{memberMap[p.from].name}</span>
+                                    <span className="mx-2 text-gray-500">owes</span>
+                                    <span className="font-medium text-purple-400">You</span>
+                                    <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       );
                     })()}
-                  </div>
-                  <div className="mt-4">
-                    <div className="font-semibold text-gray-700 mb-2">Who do I owe?</div>
-                    <div className="bg-gray-50 rounded-lg p-4 text-gray-700 text-sm">
-                      {(() => {
-                        // Calculate minimal payments
-                        const creditors = balances.filter(b => b.amount > 0).map(b => ({ ...b }));
-                        const debtors = balances.filter(b => b.amount < 0).map(b => ({ ...b }));
-                        const payments: { from: string; to: string; amount: number }[] = [];
-                        let i = 0, j = 0;
-                        while (i < debtors.length && j < creditors.length) {
-                          const debtor = debtors[i];
-                          const creditor = creditors[j];
-                          const payAmount = Math.min(-debtor.amount, creditor.amount);
-                          if (payAmount > 0.01) {
-                            payments.push({ from: debtor.id, to: creditor.id, amount: payAmount });
-                          }
-                          debtor.amount += payAmount;
-                          creditor.amount -= payAmount;
-                          if (Math.abs(debtor.amount) < 0.01) i++;
-                          if (Math.abs(creditor.amount) < 0.01) j++;
-                        }
-                        // Only show what current user owes
-                        const myPayments = payments.filter(p => p.from === currentUserId);
-                        if (myPayments.length === 0) {
-                          return <div className="text-gray-400">You do not owe anyone!</div>;
-                        }
-                        return (
-                          <ul className="space-y-2">
-                            {myPayments.map((p, idx) => {
-                              const toMember = allMembers.find(m => m.id === p.to);
-                              return (
-                                <li key={idx} className="flex items-center justify-between">
-                                  <span className="font-medium text-gray-700">You</span>
-                                  <span className="mx-2 text-gray-500">owe</span>
-                                  <span className="font-medium text-purple-400">{toMember ? (toMember.id === currentUserId ? 'You' : toMember.name) : p.to}</span>
-                                  <span className="ml-2 font-semibold">{p.amount.toFixed(2)} $</span>
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        );
-                      })()}
-                    </div>
                   </div>
                 </div>
               )}
