@@ -148,19 +148,25 @@ router.post('/:id/add-member', async (req, res) => {
         include: { members: true, pendingMembers: true },
       });
     } else {
-      // Add as pending member if not already
+      // Add as pending member if not already, with a pendingUserId
+      const pendingUserId = uuidv4();
       group = await prisma.group.update({
         where: { id: groupId },
         data: {
-          pendingMembers: { connectOrCreate: { where: { groupId_email: { groupId, email } }, create: { email } } },
+          pendingMembers: {
+            connectOrCreate: {
+              where: { groupId_email: { groupId, email } },
+              create: { email, name, pendingUserId },
+            },
+          },
         },
         include: { members: true, pendingMembers: true },
       });
     }
     // --- NEW LOGIC: Update all 'split evenly' expenses to include all current members and pending members ---
     const allMemberIds = group.members.map(m => m.id);
-    const allPendingEmails = group.pendingMembers.map(pm => pm.email);
-    const newSplitWith = [...allMemberIds, ...allPendingEmails];
+    const allPendingIds = group.pendingMembers.map(pm => pm.pendingUserId || pm.email);
+    const newSplitWith = [...allMemberIds, ...allPendingIds];
     const expenses = await prisma.expense.findMany({
       where: { groupId, splitType: 'all' },
     });
@@ -241,6 +247,8 @@ router.post('/:id/join', async (req, res) => {
       // Create user if not exists (optional, or you can return error)
       user = await prisma.user.create({ data: { email, name: name || email, password: null } });
     }
+    // Find pending member by email
+    const pendingMember = await prisma.groupPendingMember.findFirst({ where: { groupId, email } });
     // Add as confirmed member if not already
     let updatedGroup = await prisma.group.update({
       where: { id: groupId },
@@ -250,18 +258,21 @@ router.post('/:id/join', async (req, res) => {
       },
       include: { members: true, pendingMembers: true },
     });
-    // Update all 'split evenly' expenses to include all current members and pending members
-    const allMemberIds = updatedGroup.members.map(m => m.id);
-    const allPendingEmails = updatedGroup.pendingMembers.map(pm => pm.email);
-    const newSplitWith = [...allMemberIds, ...allPendingEmails];
-    const expenses = await prisma.expense.findMany({
-      where: { groupId, splitType: 'all' },
-    });
+    // Update all expenses: replace email or pendingUserId with user.id in splitWith
+    const expenses = await prisma.expense.findMany({ where: { groupId } });
     for (const expense of expenses) {
-      await prisma.expense.update({
-        where: { id: expense.id },
-        data: { splitWith: newSplitWith },
+      let changed = false;
+      let newSplitWith = expense.splitWith.map(idOrEmail => {
+        if (idOrEmail === email) { changed = true; return user.id; }
+        if (pendingMember && idOrEmail === pendingMember.pendingUserId) { changed = true; return user.id; }
+        return idOrEmail;
       });
+      if (changed) {
+        await prisma.expense.update({
+          where: { id: expense.id },
+          data: { splitWith: newSplitWith },
+        });
+      }
     }
     res.json(updatedGroup);
   } catch (err) {
