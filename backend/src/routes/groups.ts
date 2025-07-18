@@ -231,15 +231,15 @@ router.post('/:id/remove-member', async (req, res) => {
 // Join group via invite link
 router.post('/:id/join', async (req, res) => {
   const groupId = req.params.id;
-  const { id, email, name } = req.body;
-  if (!id || !email) return res.status(400).json({ error: 'Missing id or email' });
+  const { email, name } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email required' });
   try {
-    // Upsert user with correct id, email, and name
-    let user = await prisma.user.upsert({
-      where: { id },
-      update: { email, name },
-      create: { id, email, name, password: null },
-    });
+    // Check if user exists
+    let user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      // Create user if not exists (optional, or you can return error)
+      user = await prisma.user.create({ data: { email, name: name || email, password: null } });
+    }
     // Add as confirmed member if not already
     let group = await prisma.group.update({
       where: { id: groupId },
